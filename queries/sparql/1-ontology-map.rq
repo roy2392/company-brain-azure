@@ -1,0 +1,28 @@
+# title: The Wisteria ontology
+# question: What does the company brain know about — how do the concepts nest, who owns them, and what do they mean in public vocabularies?
+# inference: none
+PREFIX om:   <https://open-metadata.org/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?concept ?isA ?owner
+       (GROUP_CONCAT(DISTINCT ?match; separator=", ") AS ?publicMatch)
+       (COUNT(DISTINCT ?dataset) AS ?datasets)
+WHERE {
+  ?term a om:GlossaryTerm ;
+        om:fullyQualifiedName ?fqn ;
+        skos:prefLabel ?concept .
+  FILTER(STRSTARTS(?fqn, "WisteriaGlossary."))
+  OPTIONAL { ?parent om:hasChild ?term . ?parent skos:prefLabel ?isA }
+  OPTIONAL { ?term om:hasOwner ?o . ?o rdfs:label ?owner }
+  OPTIONAL {
+    ?term skos:exactMatch|skos:closeMatch ?m .
+    BIND(REPLACE(STR(?m), "^.*[/#]", "") AS ?local)
+    BIND(IF(CONTAINS(STR(?m), "schema.org"), CONCAT("schema:", ?local),
+         IF(CONTAINS(STR(?m), "edmcouncil"), CONCAT("fibo:", ?local),
+         IF(CONTAINS(STR(?m), "ns/org"), CONCAT("org:", ?local), CONCAT("foaf:", ?local)))) AS ?match)
+  }
+  OPTIONAL { ?dataset om:hasGlossaryTerm ?term }
+}
+GROUP BY ?concept ?isA ?owner
+ORDER BY ?isA ?concept

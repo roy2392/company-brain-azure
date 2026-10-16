@@ -1,0 +1,28 @@
+{
+  "name": "company-brain-showcase",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "up": "docker compose up -d",
+    "down": "docker compose down",
+    "era:import": "npm run era:import -w @wisteria/brain --",
+    "era:probe": "npm run era:probe -w @wisteria/brain --",
+    "ingest": "npm run ingest -w @wisteria/brain --",
+    "om:setup": "npm run om:setup -w @wisteria/brain --",
+    "mcp": "npm run mcp -w @wisteria/brain",
+    "smoke": "npm run smoke -w @wisteria/brain",
+    "test": "npm test -w @wisteria/brain",
+    "api": "npm run api -w @wisteria/brain",
+    "web": "npm run dev -w @wisteria/web",
+    "dev": "npm run api -w @wisteria/brain & npm run dev -w @wisteria/web; wait",
+    "build": "npm run build -w @wisteria/web",
+    "start": "npm run start -w @wisteria/brain",
+    "sparql": "npm run sparql -w @wisteria/brain --",
+    "om:mcp": "npm run om:mcp -w @wisteria/brain --",
+    "ask": "npm run ask -w @wisteria/brain --"
+  }
+}

@@ -1,0 +1,25 @@
+# title: Which personal data feeds the AI agent?
+# question: Which datasets containing PII does the Company Brain agent depend on — through any number of lineage hops — and who owns them?
+# inference: owl
+# note: OpenMetadata stores one-hop lineage (om:upstream). The Wisteria ontology declares wst:dependsOn as an
+#       owl:TransitiveProperty with om:upstream rdfs:subPropertyOf wst:dependsOn, so the OWL reasoner derives the
+#       agent's whole supply chain. With --inference none this query returns nothing.
+PREFIX om:   <https://open-metadata.org/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX wst:  <http://example.org/wisteria#>
+
+SELECT ?dataset ?system ?holds ?owner
+WHERE {
+  ?agent a om:AiApplication ;
+         om:fullyQualifiedName "company_brain_agent" ;
+         wst:dependsOn ?d .
+  ?d a om:Table ;
+     om:fullyQualifiedName ?dataset ;
+     om:hasTag ?pii .
+  ?pii om:fullyQualifiedName "PII.Sensitive" .
+  OPTIONAL { ?d om:belongsToService ?svc . ?svc rdfs:label ?system }
+  OPTIONAL { ?d om:hasGlossaryTerm ?t . ?t skos:prefLabel ?holds }
+  OPTIONAL { ?d om:hasOwner ?o . ?o rdfs:label ?owner }
+}
+ORDER BY ?system ?dataset

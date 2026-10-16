@@ -1,0 +1,35 @@
+# Company Brain showcase — local stack.
+#   atlas     : MongoDB Atlas Local (mongod + mongot) — same Search / Vector Search engine as Atlas cloud.
+#               Point MONGODB_URI at an Atlas cloud cluster to run the brain there instead.
+#   OpenMetadata 2.0.5 (server + Postgres + Elasticsearch) — the catalog / governance layer.
+include:
+  - infra/openmetadata.compose.yml
+
+services:
+  atlas:
+    container_name: brain_atlas
+    image: mongodb/mongodb-atlas-local:8.3.8
+    restart: unless-stopped
+    hostname: atlas
+    ports:
+      - "27017:27017"
+    volumes:
+      - atlas-db:/data/db
+      - atlas-config:/data/configdb
+      - atlas-mongot:/data/mongot
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/runner", "healthcheck"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    networks:
+      - brain_net
+
+volumes:
+  atlas-db:
+  atlas-config:
+  atlas-mongot:
+
+networks:
+  brain_net:
+    name: brain_net

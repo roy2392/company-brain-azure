@@ -1,0 +1,24 @@
+# title: Every kind of Person, and where they live
+# question: Which datasets hold people of any kind — contacts, employees, account owners?
+# inference: rdfs
+# note: run with --inference none to compare. Without the RDFS reasoner only direct sub-concepts match;
+#       with it, rdfs:subClassOf is transitive, so Account Owner (Person → Employee → Account Owner) appears.
+PREFIX om:   <https://open-metadata.org/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?kind (GROUP_CONCAT(DISTINCT ?where; separator="  ") AS ?datasets)
+WHERE {
+  ?person om:fullyQualifiedName "WisteriaGlossary.Person" .
+  ?term rdfs:subClassOf ?person ;
+        om:fullyQualifiedName ?termFqn ;
+        skos:prefLabel ?kind .
+  FILTER(STRSTARTS(?termFqn, "WisteriaGlossary.Person"))
+  OPTIONAL {
+    ?d om:hasGlossaryTerm ?term ; om:fullyQualifiedName ?fqn .
+    BIND(REPLACE(?fqn, "^wisteria_atlas\\.default\\.wisteria_brain\\.", "atlas:") AS ?a)
+    BIND(REPLACE(?a, "^era_[a-z_]+\\.wisteria\\.([a-z]+)\\.", "$1:") AS ?where)
+  }
+}
+GROUP BY ?kind
+ORDER BY ?kind
