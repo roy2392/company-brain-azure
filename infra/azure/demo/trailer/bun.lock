@@ -1,0 +1,14 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "dependencies": {
+        "playwright-core": "1.55.0",
+      },
+    },
+  },
+  "packages": {
+    "playwright-core": ["playwright-core@1.55.0", "https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/playwright-core/-/playwright-core-1.55.0.tgz", { "bin": { "playwright-core": "cli.js" } }, "sha1-7IqfjvEYr7Pobg9G8Tk+O+oyrfQ="],
+  }
+}

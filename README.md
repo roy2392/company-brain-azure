@@ -41,10 +41,14 @@ employees, 6,000 customers), and runs it on Azure:
 
 <a href="docs/demo/wisteria-portal-demo.mp4"><img src="docs/assets/demo-thumbnail.png" alt="Watch the demo: four Foundry agents, one memory, governed in OpenMetadata" width="100%"></a>
 
-Recorded in the real portals (4½ minutes, agents' thinking time sped up): the four agents in the **Microsoft Foundry
-playground**, one run's **trace** tool call by tool call, then their memories, lineage and a new glossary term in
-**OpenMetadata**, with the memory itself on a **MongoDB Atlas** cluster on Azure. Re-record it with
-[`infra/azure/demo/record-portal.sh`](infra/azure/demo/README.md).
+A 3½-minute trailer cut from a take in the real portals. After a Microsoft × MongoDB opener it shows OpenMetadata 2.0's **Knowledge Graph** ("every
+company already has a brain"), shows the brain scattered across the six Era by Eon systems, introduces the four
+**personas** (the Support Lead, Account Manager, RevOps Analyst and Product Lead agents in **Microsoft Foundry**), then
+gives each capability a beat: every tool call traced, every memory governed, column-level lineage, governed metrics,
+the Data Marketplace, a glossary term an agent proposed and the Ontology Explorer, with the memory itself on a
+**MongoDB Atlas** cluster on Azure. The full take with every caption is the
+[walkthrough](docs/demo/wisteria-portal-walkthrough.mp4) (5½ minutes). Re-record it with
+[`infra/azure/demo/record-portal.sh`](infra/azure/demo/README.md). Music: "Heroic Motif" (made with Suno).
 
 | Foundry: the agent names a pattern | Foundry tracing: every tool call | OpenMetadata: the proposed term |
 |---|---|---|

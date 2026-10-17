@@ -136,7 +136,7 @@ OpenMetadata (`admin@open-metadata.org`, `terraform output -raw openmetadata_adm
 recorder types a password. Then:
 
 ```bash
-./infra/azure/demo/record-portal.sh        # reset the team memory, record → docs/demo/wisteria-portal-demo.mp4
+./infra/azure/demo/record-portal.sh        # reset the team memory, record → docs/demo/wisteria-portal-walkthrough.mp4 (cut the trailer with demo/trailer)
 ./infra/azure/push.sh "bash infra/azure/vm/portal-down.sh"     # stop the portal browser and delete its profile
 ```
 

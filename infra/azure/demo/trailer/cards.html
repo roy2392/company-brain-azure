@@ -1,0 +1,177 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: "Deck Condensed"; src: url(../assets/fonts/barlow-condensed-600.woff2) format("woff2"); font-weight: 600; }
+@font-face { font-family: "Deck Condensed"; src: url(../assets/fonts/barlow-condensed-700.woff2) format("woff2"); font-weight: 700; }
+@font-face { font-family: "Deck Sans"; src: url(../assets/fonts/inter-var.woff2) format("woff2"); font-weight: 100 900; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #E8EFF6; }
+body { position: relative; font-family: "Deck Sans", sans-serif; color: #0F2440; }
+html.overlay, body.overlay { background: transparent; }
+body.overlay .grid, body.overlay .frame { display: none; }
+/* blueprint grid, fading towards the edges */
+.grid { position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(47,109,181,.075) 1px, transparent 1px), linear-gradient(90deg, rgba(47,109,181,.075) 1px, transparent 1px);
+  background-size: 48px 48px; background-position: -1px -1px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 65% at 50% 50%, #000 30%, transparent 100%); }
+.frame { position: absolute; inset: 22px; border: 2px solid #C8D6E5; border-radius: 22px; }
+.stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; text-align: center;
+  animation: push var(--dur) linear both; }
+@keyframes push { from { transform: scale(1); } to { transform: scale(var(--push, 1.05)); } }
+.b { animation: rise .9s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--at); }
+.b.fast { animation-duration: .45s; }
+.b.slam { animation: slam .55s cubic-bezier(.2,.9,.25,1) both; animation-delay: var(--at); }
+@keyframes rise { from { opacity: 0; transform: translateY(44px); filter: blur(10px); letter-spacing: .07em; } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes slam { from { opacity: 0; transform: scale(1.35); filter: blur(14px); } to { opacity: 1; transform: none; filter: blur(0); } }
+.label { display: flex; align-items: center; justify-content: center; gap: 18px; font: 600 30px/1 "Deck Condensed", sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #2F6DB5; }
+.label img { height: 46px; width: auto; }
+.label img.eon { height: 32px; }
+h1 { font: 700 132px/0.98 "Deck Condensed", sans-serif; letter-spacing: .005em; text-transform: uppercase; color: #0B1B33; }
+h1.xl { font-size: 150px; } h1.xxl { font-size: 176px; } h1.md { font-size: 118px; }
+.blue { color: #2F6DB5; } .green { color: #1F8F4E; } .purple { color: #6B4FD8; }
+.rule { height: 6px; width: 0; border-radius: 3px; background: #1B365D; animation: draw .9s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--at); }
+@keyframes draw { to { width: 280px; } }
+.logos { display: flex; align-items: center; justify-content: center; gap: 44px; height: 80px; }
+.logos img { height: 66px; width: auto; }
+.logos img.eon { height: 40px; } .logos img.wide { height: 46px; }
+.meta { font: 600 34px/1.4 "Deck Condensed", sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #2F6DB5; }
+.name { font: 400 30px/1.5 "Deck Sans", sans-serif; color: #2A4060; }
+.sub { font: 400 34px/1.4 "Deck Sans", sans-serif; color: #2A4060; }
+.big-logo, .logos img.big-logo { height: 190px; width: auto; } .big-logo.eon, .logos img.big-logo.eon { height: 120px; }
+/* white text over the dark knowledge graph */
+.night h1 { color: #FFFFFF; text-shadow: 0 0 36px rgba(58,160,243,.55), 0 4px 18px rgba(0,0,0,.5); }
+.night .glow { color: #7CF5A9; text-shadow: 0 0 36px rgba(0,237,100,.45), 0 4px 18px rgba(0,0,0,.5); }
+/* persona panel over sped-up agent footage */
+.persona { position: absolute; left: 120px; top: 50%; transform: translateY(-50%); width: 1060px; padding: 44px 56px 48px; border-radius: 20px; text-align: left;
+  background: rgba(234,242,251,.96); border: 3px solid #2F6DB5; box-shadow: 12px 12px 0 #9DBCE3, 0 30px 80px rgba(15,36,64,.35);
+  animation: slideIn .5s cubic-bezier(.2,.85,.2,1) both; }
+@keyframes slideIn { from { opacity: 0; transform: translate(-70px, -50%); } to { opacity: 1; transform: translate(0, -50%); } }
+.persona .label { justify-content: flex-start; }
+.persona h1 { font-size: 128px; margin: 16px 0 14px; }
+.persona p { font: italic 400 44px/1.3 "Deck Sans", sans-serif; color: #1F3550; }
+/* dark ident card: the studio-logo opener */
+html.dark, body.dark { background: #050B14; }
+body.dark .frame { display: none; }
+body.dark .grid { background-image: linear-gradient(rgba(58,160,243,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(58,160,243,.07) 1px, transparent 1px); }
+.ident { display: flex; align-items: center; gap: 70px; }
+.ident .co { display: flex; align-items: center; gap: 26px; font: 600 64px/1 "Deck Condensed", sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #F4F8FB; }
+.ident .co img { height: 92px; width: auto; }
+.ident .x { font: 300 64px/1 "Deck Sans", sans-serif; color: #5B7290; }
+.dark .meta { color: #7FA3C8; }
+.fade { animation: fadeIn 1.1s ease-out both; animation-delay: var(--at); }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.flash { position: absolute; inset: 0; background: #fff; pointer-events: none; animation: flash .45s ease-out both; }
+@keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+.veil { position: absolute; inset: 0; background: #050B14; opacity: 0; pointer-events: none; animation: veilOut var(--d) ease-in both; animation-delay: var(--at); }
+@keyframes veilOut { from { opacity: 0; } to { opacity: 1; } }
+</style>
+</head>
+<body>
+<div class="grid"></div><div class="frame"></div>
+<div class="stage" id="stage"></div>
+<script>
+const at = (s) => `--at:${s}s`;
+const isEon = (img) => (img === "eon.svg" ? "eon" : "");
+const label = (img, text, cls = "") => `<div class="label ${cls}"><img src="../assets/logos/${img}" class="${isEon(img)}">${text}</div>`;
+const persona = (n, name, ask, dur) => ({ dur, overlay: true, raw: `
+  <div class="persona">${label("foundry.svg", `Persona 0${n} · Foundry agent`)}<h1>${name}</h1><p>${ask}</p></div>` });
+const slam = (imgs, name, sub, dur) => ({ dur, flash: true, html: `
+  <div class="logos" style="height:200px;gap:60px">${imgs.map((img, i) => `<img class="big-logo b slam ${isEon(img)}" style="${at(i * 0.15)}" src="../assets/logos/${img}">`).join("")}</div>
+  <h1 class="b fast md" style="${at(0.15)};margin-top:18px">${name}</h1>
+  <p class="sub b fast" style="${at(0.45)}">${sub}</p>` });
+// one-bar feature beat: a label, then two lines a moment apart
+const beat = (img, labelText, l1, l2, color, flash = true, dur = 1.79) => ({ dur, flash, html: `${label(img, labelText, "b fast")}
+    <h1 class="b fast xl" style="${at(0)}">${l1}</h1><h1 class="b fast xl ${color}" style="${at(0.3)}">${l2}</h1>` });
+const CARDS = {
+  // the studio-style opener: Microsoft × MongoDB
+  IDENT: { dur: 7.05, dark: true, veilOut: [6.0, 1.05], html: `
+    <div class="ident fade" style="${at(0.6)}">
+      <div class="co"><img src="../assets/logos/microsoft.svg">Microsoft</div><div class="x">×</div>
+      <div class="co"><img src="../assets/logos/mongodb.svg" style="height:104px">MongoDB</div>
+    </div>
+    <p class="meta fade" style="${at(2.2)};margin-top:34px">A MongoDB community session</p>` },
+  // act 1: the brain already exists, it is just scattered (over the dark knowledge graph)
+  OPEN: { dur: 10.4, overlay: true, night: true, html: `
+    <h1 class="b xl" style="${at(1.0)}">Every company</h1>
+    <h1 class="b xl" style="${at(3.4)}">already has a brain.</h1>` },
+  SCATTER: { dur: 5.05, html: `
+    ${label("eon.svg", "Era by Eon · Wisteria Group", "b fast")}
+    <h1 class="b fast" style="${at(0.1)}">Scattered across</h1>
+    <h1 class="b fast blue" style="${at(0.45)}">six systems.</h1>
+    <div class="logos" style="margin-top:22px">${["salesforce.svg", "zendesk.svg", "gong.png", "slack.svg", "jira.svg", "gdrive.svg"].map((l, i) => `<img class="b slam ${l === "salesforce.svg" ? "wide" : ""}" style="${at(1.0 + i * 0.4)}" src="../assets/logos/${l}">`).join("")}</div>` },
+  // act 2: the question (yours), then what the brain must do, then the characters
+  Q1: { dur: 4.85, html: `
+    <h1 class="b xl" style="${at(0)}">What if we could build</h1>
+    <h1 class="b xl" style="${at(1.2)}">a real company brain</h1>
+    <h1 class="b xl blue" style="${at(2.6)}">at hyperscale,</h1>` },
+  Q2: { dur: 4.85, html: `
+    <h1 class="b xl" style="${at(0)}">on data that behaves</h1>
+    <h1 class="b xl" style="${at(1.6)}">like a <span class="green">real enterprise?</span></h1>` },
+  Q3: { dur: 5.55, html: `
+    <h1 class="b xl" style="${at(0)}">One that could remember,</h1>
+    <h1 class="b fast xl purple" style="${at(1.85)}">reason,</h1>
+    <h1 class="b fast xl green" style="${at(3.9)}">and prove every answer.</h1>` },
+  P1: persona(1, "Support Lead", "What keeps breaking for Novaris?", 4.7),
+  P2: persona(2, "Account Manager", "Why did Novaris churn?", 4.7),
+  P3: persona(3, "RevOps Analyst", "What does Finance report?", 4.65),
+  P4: persona(4, "Product Lead", "What do we fix first?", 4.65),
+  // act 3: the machine, one bar per beat on the drums
+  ONEMEM: { dur: 1.79, flash: true, html: `
+    ${label("mongodb.svg", "agent-memory on MongoDB Atlas", "b fast")}
+    <h1 class="b fast blue xl" style="${at(0)}">Four personas.</h1>
+    <h1 class="b fast green xl" style="${at(0.45)}">One memory.</h1>` },
+  TRACE: beat("appinsights.svg", "Foundry tracing", "Every tool call,", "on the record.", "blue"),
+  MEMGOV: beat("openmetadata.svg", "OpenMetadata 2.0 · Context Center", "Every memory,", "governed.", "purple"),
+  COLUMN: beat("openmetadata.svg", "Column-level lineage", "Every column,", "traced.", "blue"),
+  METRIC: beat("openmetadata.svg", "Governed metrics", "Every metric,", "defined once.", "green"),
+  PRODUCT: beat("openmetadata.svg", "Data Marketplace", "Data,", "as a product.", "green"),
+  PII: beat("openmetadata.svg", "PII classification", "Every person,", "protected.", "purple"),
+  VOCAB: beat("openmetadata.svg", "Glossary · Ontology", "The vocabulary", "grows.", "purple"),
+  // the calm middle: an answer with its receipts, then the stack on the melody's hits
+  RECEIPTS: { dur: 3.79, flash: true, html: `${label("foundry.svg", "RevOps Analyst · Microsoft Foundry", "b fast")}
+    <h1 class="b xl" style="${at(0)}">Every answer</h1><h1 class="b xl green" style="${at(0.9)}">cites its sources.</h1>` },
+  S1: slam(["foundry.svg"], "Microsoft Foundry", "Four agents on gpt-5.4, every call traced", 5.75),
+  S2: slam(["mongodb.svg"], "MongoDB Atlas", "One memory: documents, vector and text search", 3.5),
+  S3: slam(["openmetadata.svg"], "OpenMetadata 2.0", "Catalog, lineage, knowledge graph, ontology", 3.3),
+  S4: slam(["eon.svg"], "Era by Eon", "A hyperscale company, generated", 6.4),
+  S5: slam(["azure.svg", "terraform.svg"], "On Azure, in Terraform", "One terraform apply: network, VM, Foundry, Atlas, tracing", 5.95),
+  RECAP: { dur: 3.45, html: `
+    <h1 class="b fast xl" style="${at(0)}">Six systems.</h1>
+    <h1 class="b fast xl blue" style="${at(1.15)}">Four agents.</h1>
+    <h1 class="b fast xl green" style="${at(2.3)}">One memory.</h1>` },
+  // the ending: back to the graph, the build, the title on the last peak, the date as it fades
+  BUTTON: { dur: 10.55, overlay: true, night: true, html: `
+    <h1 class="b xl" style="${at(0.5)}">Ask your company anything.</h1>
+    <h1 class="b xl glow" style="${at(5.25)}">And get the receipts.</h1>` },
+  ONEBRAIN: { dur: 6.7, html: `
+    <h1 class="b fast xl" style="${at(0)}">One brain.</h1>
+    <h1 class="b fast xl" style="${at(1.7)}">Every system.</h1>
+    <h1 class="b fast xl" style="${at(4.45)}">Every agent.</h1>
+    <h1 class="b fast xl green" style="${at(5.4)}">Every answer.</h1>` },
+  TITLE: { dur: 6.35, flash: true, push: 1.07, html: `
+    <div class="logos">${["microsoft", "foundry", "mongodb", "openmetadata", "eon", "terraform"].map((l, i) => `<img class="b fast ${l === "eon" ? "eon" : ""}" style="${at(0.15 + i * 0.13)}" src="../assets/logos/${l}.svg">`).join("")}</div>
+    <h1 class="b slam xxl" style="${at(0)};margin-top:10px">Company brain</h1>
+    <h1 class="b xl green" style="${at(0.7)}">on MongoDB Atlas</h1>
+    <div class="rule" style="${at(1.3)}"></div>` },
+  DATE: { dur: 4.96, veilOut: [3.6, 1.36], html: `
+    <p class="meta b fast" style="${at(0.1)}">MongoDB community session</p>
+    <h1 class="b slam xxl" style="${at(0)}">18 October 2026</h1>
+    <p class="name b" style="${at(0.8)};margin-top:10px">Roey Zalta · Solution Engineer, Data &amp; AI · Microsoft</p>` },
+};
+const id = new URLSearchParams(location.search).get("card");
+const c = CARDS[id];
+if (c.overlay) { document.documentElement.classList.add("overlay"); document.body.classList.add("overlay"); }
+if (c.dark) { document.documentElement.classList.add("dark"); document.body.classList.add("dark"); }
+const stage = document.getElementById("stage");
+stage.style.setProperty("--dur", `${c.dur}s`);
+if (c.push) stage.style.setProperty("--push", String(c.push));
+if (c.night) stage.classList.add("night");
+if (c.raw) { stage.style.animation = "none"; document.body.insertAdjacentHTML("beforeend", c.raw); } else stage.innerHTML = c.html;
+if (c.flash) document.body.insertAdjacentHTML("beforeend", `<div class="flash"></div>`);
+if (c.veilOut) document.body.insertAdjacentHTML("beforeend", `<div class="veil" style="${at(c.veilOut[0])};--d:${c.veilOut[1]}s"></div>`);
+window.CARD = c;
+</script>
+</body>
+</html>

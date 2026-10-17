@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Record the demo in the real portals (Foundry playground, then OpenMetadata) inside the VM's portal browser, and fetch it.
-#   ./infra/azure/demo/record-portal.sh                  # reset the team memory, record → docs/demo/wisteria-portal-demo.mp4
+#   ./infra/azure/demo/record-portal.sh                  # reset the team memory, record → docs/demo/wisteria-portal-walkthrough.mp4
 #   ./infra/azure/demo/record-portal.sh --keep           # keep the current team memory
 #   SCENES=om DRY=1 ./infra/azure/demo/record-portal.sh --keep   # rehearse only the OpenMetadata part, no video
 #   SCENES=traces VIDEO=test.mp4 ./infra/azure/demo/record-portal.sh --keep   # test one scene into another file
@@ -32,7 +32,7 @@ $RESET
 mkdir -p /opt/brain/data/demo /opt/brain/data/share && rm -f /opt/brain/data/demo/portal-* /opt/brain/data/demo/failed-*
 docker exec -u root brain_portal_browser bash -c 'command -v xdotool >/dev/null || (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends xdotool >/dev/null)'
 docker exec -e AZURE_SUBSCRIPTION_ID=$SUB -e AZURE_RESOURCE_GROUP=$RG -e FOUNDRY_ACCOUNT=$ACCOUNT -e FOUNDRY_PROJECT=$PROJECT \\
-  -e OM_URL=https://$FQDN:8443 -e SCENES=${SCENES:-foundry,traces,om} -e DRY=${DRY:-} \\
+  -e OM_URL=https://$FQDN:8443 -e SCENES=${SCENES:-foundry,traces,om} -e DRY=${DRY:-} -e TOUR="${TOUR:-}" -e TOUR_ONLY=${TOUR_ONLY:-} -e SKIP_TOUR=${SKIP_TOUR:-} \\
   brain_portal_browser sh -c 'cp /demo/portal-record.mjs /app/ && cd /app && node portal-record.mjs' 2>&1 | tail -40 || true
 cp /opt/brain/data/demo/portal-* /opt/brain/data/demo/failed-* /opt/brain/data/share/ 2>/dev/null || true
 ls -lh /opt/brain/data/share | tail -n +2
@@ -54,5 +54,5 @@ run "$TMP/clean.sh" >/dev/null
 [[ -n "${DRY:-}" ]] && exit 0
 
 echo "== editing (agents' thinking time sped up)"
-python3 "$ROOT/infra/azure/demo/speedup.py" "$TMP/raw.mp4" "$TMP/segments.json" "$OUT/${VIDEO:-wisteria-portal-demo.mp4}" "${SPEEDUP:-8}"
-ls -lh "$OUT/${VIDEO:-wisteria-portal-demo.mp4}"
+python3 "$ROOT/infra/azure/demo/speedup.py" "$TMP/raw.mp4" "$TMP/segments.json" "$OUT/${VIDEO:-wisteria-portal-walkthrough.mp4}" "${SPEEDUP:-8}"
+ls -lh "$OUT/${VIDEO:-wisteria-portal-walkthrough.mp4}"

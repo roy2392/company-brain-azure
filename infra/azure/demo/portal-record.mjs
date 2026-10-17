@@ -6,7 +6,7 @@
 //   optional: BRAIN_URL (http://brain:8787), MODEL (gpt-5.4), OUT (/out), SCENES (foundry,om), DRY=1 (no recording)
 import { execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
 
 const env = process.env;
@@ -95,63 +95,138 @@ async function pointAtXY(page, x, y, ms) {
 }
 
 // ---------- captions and cards, drawn into the page (outside the app's own DOM tree) ----------
-async function caption(page, title, text = "", pos = "bl") {
+// Styled like the slides ("blueprint"): pale panels with a solid offset edge, product colours (Foundry blue,
+// MongoDB green, OpenMetadata purple), Barlow Condensed + Inter. Fonts load from bytes with the FontFace API and
+// logos are built as inline SVG elements, so neither depends on the portal's CSP or Trusted Types.
+const ASSETS = env.ASSETS ?? "/demo/assets";
+const FONTS = [
+  ["Deck Condensed", "barlow-condensed-600.woff2", "600"],
+  ["Deck Condensed", "barlow-condensed-700.woff2", "700"],
+  ["Deck Sans", "inter-var.woff2", "100 900"],
+].map(([family, file, weight]) => ({ family, weight, b64: readFileSync(`${ASSETS}/fonts/${file}`).toString("base64") }));
+
+/** Minimal SVG → {tag, attrs, children} tree (the logo files are plain markup without text nodes). */
+function svgTree(src) {
+  const root = { children: [] };
+  const stack = [root];
+  const clean = src.replace(/<\?xml[^>]*>|<!--[\s\S]*?-->|<!DOCTYPE[^>]*>/g, "");
+  for (const [, close, tag, attrStr, self] of clean.matchAll(/<(\/?)([a-zA-Z][\w:-]*)([^>]*?)(\/?)>/g)) {
+    if (close) {
+      stack.pop();
+      continue;
+    }
+    const attrs = Object.fromEntries([...attrStr.matchAll(/([\w:-]+)\s*=\s*"([^"]*)"/g)].map((a) => [a[1], a[2]]));
+    const node = { tag, attrs, children: [] };
+    stack.at(-1).children.push(node);
+    if (!self) stack.push(node);
+  }
+  return root.children[0];
+}
+const LOGOS = ["microsoft", "foundry", "mongodb", "openmetadata", "terraform"].map((n) => svgTree(readFileSync(`${ASSETS}/logos/${n}.svg`, "utf8")));
+
+const DECK_CSS = `
+@keyframes __up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+#__cap{position:fixed;z-index:2147483646;pointer-events:none;max-width:660px;padding:16px 22px 18px;border-radius:12px;background:var(--fill);border:2px solid var(--line);box-shadow:7px 7px 0 var(--edge),0 18px 40px rgba(15,36,64,.18);color:#1F3550;font:16px/1.5 "Deck Sans","Segoe UI",sans-serif;opacity:0;transition:opacity .3s ease}
+#__cap.on{opacity:1;animation:__up .5s cubic-bezier(.2,.8,.2,1) both}
+#__cap b{display:block;margin-bottom:7px;font:700 25px/1.1 "Deck Condensed","Segoe UI",sans-serif;letter-spacing:.02em;text-transform:uppercase;color:#0F2440}
+#__cap.bl{left:24px;bottom:26px}#__cap.br{right:30px;bottom:26px}#__cap.tr{right:30px;top:64px}
+#__cap.blue,.__chip.blue{--fill:#EAF2FB;--line:#2F6DB5;--edge:#9DBCE3}
+#__cap.green,.__chip.green{--fill:#E8F5EC;--line:#1F8F4E;--edge:#9CCFB0}
+#__cap.purple,.__chip.purple{--fill:#F0ECFF;--line:#6B4FD8;--edge:#BDB0F0}
+.__chip.gray{--fill:#F6F8FA;--line:#5B6B7C;--edge:#C3CDD8}
+#__card{position:fixed;inset:0;z-index:2147483647;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;text-align:center;background:#E8EFF6;color:#0F2440;font-family:"Deck Sans","Segoe UI",sans-serif;opacity:0;transition:opacity .5s ease}
+#__card.on{opacity:1}
+#__card::before{content:"";position:absolute;inset:22px;border:2px solid #C8D6E5;border-radius:22px}
+#__card .b{opacity:0}#__card.on .b{animation:__up .6s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i) * 110ms + 150ms)}
+#__card .logos{display:flex;gap:40px;align-items:center;height:60px}#__card .logos svg{height:54px;width:auto}
+#__card h1{margin:0;max-width:1500px;font:700 78px/1.02 "Deck Condensed","Segoe UI",sans-serif;letter-spacing:.01em;text-transform:uppercase;color:#0B1B33}
+#__card .rule{width:0;height:5px;border-radius:3px;background:#1B365D;transition:width .8s cubic-bezier(.2,.8,.2,1) .45s}#__card.on .rule{width:240px}
+#__card p{margin:0;max-width:1180px;font:400 26px/1.5 "Deck Sans","Segoe UI",sans-serif;color:#2A4060}
+#__card .row{display:flex;flex-wrap:wrap;justify-content:center;gap:18px;margin-top:6px;max-width:1500px}
+.__chip{padding:11px 22px;border-radius:999px;background:var(--fill);border:2px solid var(--line);box-shadow:4px 4px 0 var(--edge);font:700 22px/1 "Deck Condensed","Segoe UI",sans-serif;letter-spacing:.03em;text-transform:uppercase;color:#0F2440}
+#__card .foot{position:absolute;left:54px;bottom:42px;font:400 15px "Deck Sans","Segoe UI",sans-serif;color:#6B7F96}`;
+
+/** Fonts and styles, once per document; waits for the fonts so the first caption never flashes a fallback face. */
+async function deckLook(page) {
+  if (await page.evaluate(() => !!document.getElementById("__demo_style"))) return;
   await page.evaluate(
-    ([title, text, pos]) => {
-      if (!document.getElementById("__demo_style")) {
-        const st = document.createElement("style");
-        st.id = "__demo_style";
-        st.textContent = `#__cap{position:fixed;z-index:2147483646;pointer-events:none;max-width:640px;padding:16px 20px 17px;border-radius:12px;background:rgba(15,23,42,.93);color:#f1f5f9;font:16px/1.45 "Segoe UI","Noto Sans","DejaVu Sans",sans-serif;box-shadow:0 14px 36px rgba(0,0,0,.35);border-left:5px solid #00a35c;transition:opacity .35s}
-#__cap b{display:block;font-size:21px;font-weight:600;color:#fff;margin-bottom:5px}
-#__cap.bl{left:18px;bottom:18px}#__cap.br{right:18px;bottom:18px}#__cap.tr{right:18px;top:64px}
-#__card{position:fixed;inset:0;z-index:2147483647;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;background:radial-gradient(circle at 30% 20%,#0f3b2e,#0b1220 60%);color:#e2e8f0;font-family:"Segoe UI","Noto Sans","DejaVu Sans",sans-serif;transition:opacity .6s}
-#__card h1{margin:0;font-size:54px;font-weight:650;color:#fff;max-width:1400px;line-height:1.15}
-#__card p{margin:0;font-size:24px;max-width:1250px;line-height:1.5;color:#cbd5e1}
-#__card .row{display:flex;gap:14px;margin-top:10px}#__card .row span{padding:9px 16px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);font-size:18px}`;
-        document.documentElement.append(st);
+    async ([fonts, css]) => {
+      const st = document.createElement("style");
+      st.id = "__demo_style";
+      st.textContent = css;
+      document.documentElement.append(st);
+      for (const f of fonts) {
+        const bytes = Uint8Array.from(atob(f.b64), (ch) => ch.charCodeAt(0));
+        const face = new FontFace(f.family, bytes.buffer, { weight: f.weight });
+        document.fonts.add(await face.load());
       }
+    },
+    [FONTS, DECK_CSS],
+  );
+}
+
+const toneOf = (page) => (page.url().includes("ai.azure.com") ? "blue" : "purple");
+async function caption(page, title, text = "", pos = "bl", tone = toneOf(page)) {
+  await deckLook(page);
+  await page.evaluate(
+    ([title, text, pos, tone]) => {
       let el = document.getElementById("__cap");
       if (!el) {
         el = document.createElement("div");
         el.id = "__cap";
         document.documentElement.append(el);
       }
-      el.className = pos;
-      el.replaceChildren();
-      if (title) {
-        const b = document.createElement("b");
-        b.textContent = title;
-        el.append(b, document.createTextNode(text));
+      if (!title) {
+        el.classList.remove("on");
+        return;
       }
-      el.style.opacity = title ? "1" : "0";
+      el.className = `${pos} ${tone}`;
+      el.replaceChildren();
+      const b = document.createElement("b");
+      b.textContent = title;
+      el.append(b, document.createTextNode(text));
+      void el.offsetWidth; // restart the entrance animation for each new caption
+      el.classList.add("on");
     },
-    [title, text, pos],
+    [title, text, pos, tone],
   );
 }
+
+const chipTone = (t) => (/MongoDB|memory/i.test(t) ? "green" : /OpenMetadata|ontology|governed/i.test(t) ? "purple" : /Foundry|Microsoft|MCP/i.test(t) ? "blue" : "gray");
 async function card(page, title, text, chips, ms) {
   await caption(page, "");
+  await deckLook(page);
   await page.evaluate(
-    ([title, text, chips]) => {
+    ([title, text, chips, logos]) => {
+      const NS = "http://www.w3.org/2000/svg";
+      const build = (n) => {
+        const e = document.createElementNS(NS, n.tag);
+        for (const [k, v] of Object.entries(n.attrs)) if (!k.startsWith("xmlns")) e.setAttribute(k.replace(/^xlink:/, ""), v);
+        for (const c of n.children) e.append(build(c));
+        return e;
+      };
+      const el = (tag, cls, i, textContent) => Object.assign(document.createElement(tag), { className: cls, textContent: textContent ?? "" });
       const c = document.createElement("div");
       c.id = "__card";
-      const h = document.createElement("h1");
-      h.textContent = title;
-      const p = document.createElement("p");
-      p.textContent = text;
-      const row = document.createElement("div");
-      row.className = "row";
-      for (const t of chips) row.append(Object.assign(document.createElement("span"), { textContent: t }));
-      c.append(h, p, row);
+      let i = 0;
+      const step = (e) => (e.style.setProperty("--i", String(i++)), e);
+      const row1 = step(el("div", "logos b"));
+      for (const l of logos) row1.append(build(l));
+      const h = step(el("h1", "b", 0, title));
+      const rule = el("div", "rule");
+      const p = step(el("p", "b", 0, text));
+      const row = el("div", "row");
+      for (const t of chips) row.append(step(el("span", `__chip b ${t[1]}`, 0, t[0])));
+      c.append(row1, h, rule, p, row, el("div", "foot", 0, "Company Brain on MongoDB Atlas · Roey Zalta, Microsoft"));
       document.documentElement.append(c);
+      void c.offsetWidth;
+      c.classList.add("on");
     },
-    [title, text, chips],
+    [title, text, chips.map((t) => [t, chipTone(t)]), LOGOS],
   );
   await sleep(ms);
-  await page.evaluate(() => {
-    const c = document.getElementById("__card");
-    if (c) c.style.opacity = "0";
-  });
-  await sleep(700);
+  await page.evaluate(() => document.getElementById("__card")?.classList.remove("on"));
+  await sleep(600);
   await page.evaluate(() => document.getElementById("__card")?.remove());
 }
 
@@ -279,7 +354,7 @@ async function traces(page, agent, baseline) {
   if (await remember.count()) {
     await click(page, remember.last(), { dx: 0.4 });
     await sleep(1200);
-    await caption(page, "remember: what the agent saved", "The fact, the question it answers, the account and the ontology concepts, plus a new concept when the glossary lacks one. agent-memory stores it on MongoDB Atlas; the gateway mirrors it to OpenMetadata.");
+    await caption(page, "remember: what the agent saved", "The fact, the question it answers, the account and the ontology concepts, plus a new concept when the glossary lacks one. agent-memory stores it on MongoDB Atlas; the gateway mirrors it to OpenMetadata.", "bl", "green");
     await pointAtXY(page, 1490, 420, 700);
     await sleep(7000);
   }
@@ -292,10 +367,129 @@ async function traces(page, agent, baseline) {
 async function catalog() {
   return (await fetch(`${BRAIN}/api/team/catalog`)).json();
 }
+/** One step of the tour; a UI change skips the step instead of failing the take. TOUR=lineage,... runs only those. */
+const TOUR = env.TOUR ? new Set(env.TOUR.split(",")) : null;
+async function soft(name, fn) {
+  if (TOUR && !TOUR.has(name)) return;
+  try {
+    await fn();
+  } catch (e) {
+    log(`skipped ${name}:`, String(e).split("\n")[0]);
+  }
+}
+async function show(page, target, { hold = 900, ...opts } = {}) {
+  const l = typeof target === "string" ? page.locator(target).first() : target;
+  if (!(await l.isVisible().catch(() => false))) return;
+  await pointAt(page, l, { ms: 600, ...opts });
+  await sleep(hold);
+}
+const wheel = (n, down = true) => X("click", "--repeat", n, "--delay", 90, down ? 5 : 4);
+/** Drag across an element (pans a lineage canvas, orbits the 3D knowledge graph). */
+async function drag(page, target, dx, dy = 0, ms = 2400) {
+  const b = await (typeof target === "string" ? page.locator(target).first() : target).boundingBox();
+  const off = await chromeOffset(page);
+  const vh = await page.evaluate(() => window.innerHeight); // some canvases run past the bottom of the window
+  const x = Math.round(off.x + b.x + b.width / 2), y = Math.round(off.y + Math.min(b.y + b.height / 2, vh - 260));
+  await glide(x, y, 500);
+  X("mousedown", 1);
+  await glide(x + dx, y + dy, ms);
+  X("mouseup", 1);
+}
+
+/** OpenMetadata 2.0 over the Era by Eon catalog: sources, Slack and Zendesk tables, PII, column lineage,
+ *  the knowledge graph, governed metrics and the data marketplace. */
+async function catalogTour(om) {
+  await soft("services", async () => {
+    await om.goto(`${OM}/settings/services/databases`, { waitUntil: "domcontentloaded" });
+    await om.locator("text=Slack · Era").first().waitFor({ timeout: 60_000 });
+    await sleep(1500);
+    await caption(om, "Era by Eon, cataloged", "Wisteria's six systems from Era by Eon (Salesforce, Zendesk, Gong, Slack, Jira & Confluence, Google Drive), each an OpenMetadata service with an owner team, next to MongoDB Atlas: the brain database and the agent-memory cluster.", "tr");
+    for (const s of ["Salesforce · Era", "Zendesk · Era", "Slack · Era", "Gong · Era"]) await show(om, `text=${s}`, { dx: 0.3, hold: 700 });
+    wheel(5);
+    await sleep(2800);
+  });
+
+  await soft("slack", async () => {
+    await om.goto(`${OM}/table/era_slack.wisteria.slack.messages`, { waitUntil: "domcontentloaded" });
+    await om.locator("text=Slack Conversation").first().waitFor({ timeout: 60_000 });
+    await sleep(1500);
+    await caption(om, "Slack · messages", "Pulled through Era's Slack API, columns refined from real records: ts, user, text, thread_ts, reactions, files. Owned by Data Platform in the Collaboration domain, tagged with the Slack Conversation concept; user is a foreign key to slack.users.", "br");
+    for (const t of ["text=Collaboration", "text=Data Platform", "text=Slack Conversation"]) await show(om, t, { hold: 800 });
+    await show(om, "text=reply_count", { hold: 300 });
+    wheel(4);
+    await sleep(2600);
+  });
+
+  await soft("zendesk pii", async () => {
+    await om.goto(`${OM}/table/era_zendesk.wisteria.zendesk.users`, { waitUntil: "domcontentloaded" });
+    await om.locator("text=Sensitive").first().waitFor({ timeout: 60_000 });
+    await sleep(1500);
+    await caption(om, "PII, tagged per column", "Zendesk · users: name, email and phone carry PII.Sensitive and the table inherits the tag, so people and agents see what is personal before they use it. The Product Lead's PII question was answered from these tags.", "br");
+    for (let i = 0; i < 3; i++) await show(om, om.locator("text=Sensitive").nth(i), { hold: 800 });
+    await sleep(1500);
+  });
+
+  await soft("lineage", async () => {
+    await om.goto(`${OM}/table/era_zendesk.wisteria.zendesk.tickets/lineage`, { waitUntil: "domcontentloaded" });
+    await om.locator('.react-flow__node:has-text("raw_zendesk_tickets")').first().waitFor({ timeout: 60_000 });
+    await sleep(1500);
+    await caption(om, "Column-level lineage", "Every Zendesk ticket field flows into raw_zendesk_tickets on Atlas (the era_to_atlas pipeline), then into docs and chunks, the Escalation Rate metric and the Company Brain agent.", "tr");
+    await sleep(1500);
+    // full screen first: the column layer lays the graph out again with tall nodes, which need the room
+    const full = om.getByRole("button", { name: /full screen/i }).first();
+    await click(om, full);
+    await sleep(1500);
+    await click(om, "text=Layers");
+    await click(om, om.getByRole("button", { name: "Column", exact: true }).first());
+    await sleep(3000);
+    await show(om, om.locator('.react-flow__node:has-text("Zendesk") >> text=priority').first(), { hold: 400 });
+    X("click", 1);
+    await sleep(4000);
+    await om.keyboard.press("Escape");
+    await sleep(800);
+    if (await full.isVisible().catch(() => false)) await click(om, full); // leave full screen if Escape did not
+  });
+
+  await soft("knowledge graph", async () => {
+    await click(om, '[role=tab]:has-text("Knowledge Graph")');
+    await om.locator("text=Drag to orbit").first().waitFor({ timeout: 30_000 });
+    await sleep(2500);
+    await click(om, "text=Show columns");
+    await sleep(2000);
+    await caption(om, "New in 2.0: the Knowledge Graph", "One asset in context: its columns, owners, glossary terms and queries, and the lineage between assets, as a graph you can orbit. Switch to the data-product or domain level, or overlay the ontology.", "tr");
+    await drag(om, om.locator("canvas").filter({ visible: true }).first(), 320, -40, 3200);
+    await sleep(2500);
+  });
+
+  await soft("metric", async () => {
+    await om.goto(`${OM}/metric/escalation_rate`, { waitUntil: "domcontentloaded" });
+    await om.locator('[role=tab]:has-text("Expression")').first().waitFor({ timeout: 60_000 });
+    await sleep(1200);
+    await click(om, '[role=tab]:has-text("Expression")');
+    await caption(om, "Governed metrics, with their code", "Escalation Rate: a MongoDB aggregation over the brain's docs, a ratio by quarter, owned by Support and bound to the Escalation glossary term. Agents read this definition instead of inventing one.", "br");
+    for (const t of ["text=RATIO", "text=QUARTER", "text=db.docs.aggregate"]) await show(om, t, { hold: 900 });
+    await sleep(1800);
+  });
+
+  await soft("marketplace", async () => {
+    await om.goto(`${OM}/data-marketplace`, { waitUntil: "domcontentloaded" });
+    await om.locator("text=Customer 360 Brain").first().waitFor({ timeout: 60_000 });
+    await sleep(1200);
+    await caption(om, "New in 2.0: the Data Marketplace", "People discover trusted data products and request access. Customer 360 Brain bundles the 30 Atlas collections the agents read, owned by Data Platform in the Company Brain domain.", "tr");
+    await sleep(1500);
+    await click(om, "text=Customer 360 Brain");
+    await om.locator('[role=tab]:has-text("Assets")').first().waitFor({ timeout: 30_000 });
+    await click(om, '[role=tab]:has-text("Assets")');
+    await sleep(3500);
+  });
+  await caption(om, "");
+}
 async function openMetadata(om) {
   await om.bringToFront();
   const cat = await catalog();
   log("catalog", cat.memories?.length, "memories,", cat.proposed?.length, "proposed terms");
+  if (!env.SKIP_TOUR) await catalogTour(om);
+  if (env.TOUR_ONLY) return;
 
   // memories
   await om.goto(`${OM}/context-center/memories`, { waitUntil: "domcontentloaded" });
@@ -356,10 +550,19 @@ async function openMetadata(om) {
     }
     await sleep(2500);
   }
-  await om.goto(`${OM}/glossary/WisteriaGlossary`, { waitUntil: "domcontentloaded" });
-  await click(om, om.locator("text=Relations Graph").first());
-  await sleep(5000);
-  await caption(om, "The Wisteria ontology", term ? `Business concepts, typed relations and mappings to schema.org and FIBO. "${term.name}" joins it next to the concepts its memory touched. Agents tag every memory with these terms.` : "Business concepts, typed relations and mappings to schema.org and FIBO. Agents tag every memory with these terms.", "tr");
+  // the whole ontology: OpenMetadata 2.0's Ontology Explorer (the glossary's relations graph if it is unavailable)
+  const about = term ? `"${term.name}" joins it next to the concepts its memory touched. ` : "";
+  try {
+    await om.goto(`${OM}/governance/ontology`, { waitUntil: "domcontentloaded" });
+    await om.locator("text=Ontology Explorer").first().waitFor({ timeout: 30_000 });
+    await sleep(5000);
+    await caption(om, "New in 2.0: the Ontology Explorer", `Wisteria's business concepts, governed metrics and typed relations in one graph, mapped to schema.org and FIBO. ${about}Agents tag every memory with these terms.`, "tr");
+  } catch {
+    await om.goto(`${OM}/glossary/WisteriaGlossary`, { waitUntil: "domcontentloaded" });
+    await click(om, om.locator("text=Relations Graph").first());
+    await sleep(5000);
+    await caption(om, "The Wisteria ontology", `Business concepts, typed relations and mappings to schema.org and FIBO. ${about}Agents tag every memory with these terms.`, "tr");
+  }
   if (term) {
     const search = om.locator('input[placeholder*="Search in Graph"]').first();
     if (await search.isVisible().catch(() => false)) {

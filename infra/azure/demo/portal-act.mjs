@@ -1,5 +1,6 @@
 // Drive the portal browser over CDP with a list of steps, for exploring portals before scripting a demo.
 // ACTIONS='[{"tab":0},{"goto":"https://..."},{"click":"text=Agents"},{"wait":3000},{"shot":"a"},{"dump":true}]'
+// {"closeUrl":"accounts.google.com"} closes every tab whose URL contains the text.
 // Screenshots go to /out/act-<name>.png ("xshot": the whole X display); "dump" prints the URL, title and visible
 // buttons/links/tabs; "eval" prints the value of a JavaScript expression evaluated in the page.
 import { execSync } from "node:child_process";
@@ -18,6 +19,10 @@ for (const a of actions) {
     if (a.newTab) {
       page = await page.context().newPage();
       await page.goto(a.newTab, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    }
+    if (a.closeUrl) {
+      for (const p of browser.contexts().flatMap((c) => c.pages())) if (p.url().includes(a.closeUrl)) await p.close();
+      page = browser.contexts().flatMap((c) => c.pages())[0];
     }
     if (a.goto) await page.goto(a.goto, { waitUntil: "domcontentloaded", timeout: 60_000 });
     if (a.click) await page.locator(a.click).first().click({ timeout: 15_000 });
