@@ -310,6 +310,22 @@ export async function promoteMemory(om: OM, a: WisteriaAgent, m: { id: string; f
   return memory;
 }
 
+/** Glossary terms the agents proposed from memory (deriveTerm marks them in the description), newest first. */
+export async function derivedTerms(om: OM) {
+  const r = await om.get<any>(`/glossaryTerms?limit=1000&fields=owners,reviewers,parent`);
+  return ((r.data ?? []) as any[])
+    // OpenMetadata stores the backtick as &#96;
+    .filter((t) => /from team memory (`|&#96;)/.test(String(t.description ?? "")))
+    .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+}
+
+/** Demo reset: remove the glossary terms the agents proposed. */
+export async function forgetDerivedTerms(om: OM) {
+  let n = 0;
+  for (const t of await derivedTerms(om)) if (await tolerate(om.req("DELETE", `/glossaryTerms/${t.id}?hardDelete=true&recursive=true`), [400, 404])) n++;
+  return n;
+}
+
 /** Demo reset: remove the Context Center mirror of the agents' memories. */
 export async function forgetPromotedMemories(om: OM) {
   const r = await om.get<any>("/contextCenter/memories?limit=1000");

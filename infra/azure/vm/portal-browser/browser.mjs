@@ -3,6 +3,8 @@ import { chromium } from "playwright";
 const ctx = await chromium.launchPersistentContext("/profile", {
   headless: false,
   viewport: null,
+  // no "Chrome is being controlled by automated test software" bar in the recording
+  ignoreDefaultArgs: ["--enable-automation"],
   args: ["--remote-debugging-port=9222", "--window-position=0,0", "--window-size=1920,1080", "--no-first-run", "--disable-features=Translate", "--force-device-scale-factor=1"],
 });
 const first = ctx.pages()[0] ?? (await ctx.newPage());

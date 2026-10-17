@@ -28,7 +28,7 @@ No laptop and no tunnel in the loop: the Foundry agents call the brain and OpenM
 
 | File | Resources |
 |---|---|
-| `main.tf`, `network.tf` | resource group, VNet/subnet, NSG (22 from your IP; 80/443/8443 from the internet), static public IP with an Azure DNS name |
+| `main.tf`, `network.tf` | resource group, VNet/subnet, NSG on the NIC **and** the subnet (80/443/8443/8444 from the internet; 22 from your IP only with `enable_ssh = true`), static public IP with an Azure DNS name |
 | `vm.tf`, `cloud-init.yaml.tftpl` | Ubuntu 24.04 VM (`Standard_D8s_v5`, 128 GB Premium SSD, system-assigned identity); cloud-init installs Docker and writes the generated settings and secrets to `/opt/brain` |
 | `foundry.tf` | AI Services account (`allowProjectManagement`), project `wisteria-agents`, `gpt-5.4` GlobalStandard deployment, 8 MCP connections (2 per agent), `Cognitive Services User` for the VM identity |
 | `secrets.tf` | OpenMetadata admin password, web basic-auth password, one gateway key per agent, OpenMetadata JWT signing key and Fernet key |
@@ -94,18 +94,32 @@ terraform -chdir=infra/azure/terraform output -raw openmetadata_admin_password  
 
 ## Record the demo video
 
+The demo is recorded in the real portals: the agents in the Microsoft Foundry playground, then OpenMetadata. It runs
+in a Chromium on the VM (the *portal browser*), so it also works from a laptop whose network blocks Foundry.
+
 ```bash
-./infra/azure/demo/record.sh     # resets the team memory, records, speeds up the waits → docs/demo/wisteria-agents-demo.mp4
-                                 # (Run Command + a one-off download link; no SSH, no password typed)
+./infra/azure/push.sh "bash infra/azure/vm/portal-up.sh"       # start the portal browser (noVNC on :8444)
+terraform -chdir=infra/azure/terraform output portal_browser_url
+./infra/azure/push.sh --exec "cat /opt/brain/env/browser.password"   # basic auth, user: wisteria
 ```
 
-See `demo/README.md` for the storyline.
+Open the URL, connect, and sign in yourself in that browser: tab 1 `ai.azure.com` (your Azure account), tab 2
+OpenMetadata (`admin@open-metadata.org`, `terraform output -raw openmetadata_admin_password`). Nothing in the
+recorder types a password. Then:
+
+```bash
+./infra/azure/demo/record-portal.sh        # reset the team memory, record → docs/demo/wisteria-portal-demo.mp4
+./infra/azure/push.sh "bash infra/azure/vm/portal-down.sh"     # stop the portal browser and delete its profile
+```
+
+Run `portal-down.sh` when you are done: the browser profile holds your signed-in Azure session. See
+`demo/README.md` for the storyline and the rehearsal options. (`demo/record.sh` records the older `/team` web page.)
 
 ## Operate
 
 ```bash
-ssh brain@$(terraform -chdir=infra/azure/terraform output -raw vm_public_ip)
-cd /opt/brain/app
+./infra/azure/push.sh --exec "docker compose -f docker-compose.azure.yml ps"   # or, with enable_ssh: ssh brain@<vm_public_ip>
+cd /opt/brain/app                                                   # on the VM
 docker compose -f docker-compose.azure.yml ps
 docker logs -f brain_app                                            # gateway lines: [agent] → tool, ⟲ recall, ✚ remember
 docker exec -w /app brain_app npx tsx packages/brain/scripts/team-reset.ts   # forget the team memory
@@ -119,8 +133,9 @@ Cost while running: the VM (`D8s_v5`, ~US$0.38/h) dominates; model tokens are pe
 
 ## Security model
 
-- Internet-facing: only Caddy (80 → redirect, 443, 8443). Atlas, agent-memory, Fuseki, Postgres, Elasticsearch,
-  Ollama and the brain's ports are closed in the NSG and only reachable on the compose network.
+- Internet-facing: only Caddy (80 → redirect, 443, 8443, and 8444 for the portal browser, behind basic auth and only
+  while it runs). Atlas, agent-memory, Fuseki, Postgres, Elasticsearch, Ollama and the brain's ports are closed in
+  the NSG and only reachable on the compose network.
 - Foundry → gateway: `/agents/<agent>/…` requires that agent's key (one random key per agent, stored only in its
   Foundry project connections and on the VM); one agent's key does not open another agent's endpoints.
 - OpenMetadata tokens never leave the VM: the gateway forwards to OpenMetadata's MCP endpoint with the agent's own
@@ -128,7 +143,8 @@ Cost while running: the VM (`D8s_v5`, ~US$0.38/h) dominates; model tokens are pe
 - Each agent's OpenMetadata bot has the `WisteriaAgent` role: the Data Consumer policy plus create/edit on Context
   Center memories, nothing else (no delete).
 - OpenMetadata uses its own JWT signing key and Fernet key (not the image defaults) and a generated admin password.
-- The web app sits behind basic auth; SSH is limited to `ssh_allowed_cidrs`.
+- The web app sits behind basic auth; SSH is closed unless `enable_ssh = true`, then limited to `ssh_allowed_cidrs`.
+- The portal browser's profile holds whoever signed in to it: `portal-down.sh` deletes it after a recording.
 - Terraform state contains the generated secrets: keep it local (git-ignored) or move it to a locked-down backend.
 
 ## Troubleshooting
@@ -142,4 +158,7 @@ Cost while running: the VM (`D8s_v5`, ~US$0.38/h) dominates; model tokens are pe
 | Caddy has no certificate | Port 80 must be reachable for Let's Encrypt; check `docker logs brain_caddy`. |
 | Agents answer "tool failed" | `docker logs brain_app` shows each gateway call; a 401 means the key in the Foundry connection and `FOUNDRY_AGENT_KEYS` differ (re-apply Terraform, re-run deploy). |
 | Elasticsearch restarts | `vm.max_map_count` must be 262144 (cloud-init sets it; `sysctl vm.max_map_count`). |
-| Foundry calls fail from a corporate laptop | Some corporate network clients (e.g. Global Secure Access) block `*.services.ai.azure.com` for other tenants. The VM is not affected; use `/team` or record with `demo/record.sh`. |
+| Foundry calls fail from a corporate laptop | Some corporate network clients (e.g. Global Secure Access) block `*.services.ai.azure.com` for other tenants. The VM is not affected; use the portal browser (`vm/portal-up.sh`) or `/team`. |
+| Every port times out, the VM is running | A managed tenant's automation can attach its own NSG (default rules: deny all inbound) to the subnet, and remove SSH rules. `azurerm_subnet_network_security_group_association.vm` puts our NSG back: `terraform apply` (if Terraform did not create the association, `terraform import` it first). |
+| Portal browser shows "Chrome is being controlled by automated test software" | Images built before this fix: close the bar once (`docker exec -e DISPLAY=:99 brain_portal_browser xdotool mousemove 1893 113 click 1`); rebuilt images start without it. |
+| Foundry playground uses another model | The playground's model picker can switch to another deployment in the account; `record-portal.sh` selects `gpt-5.4` before each chat. |

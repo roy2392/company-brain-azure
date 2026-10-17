@@ -20,8 +20,12 @@ export class OM {
   /** No token: logs in as the admin. With a token: acts as that user or bot. */
   constructor(private token?: string) {}
 
+  /** true when the token came from login() (refreshable), false for a fixed token passed to the constructor */
+  private loggedIn = false;
+
   async login(): Promise<this> {
     if (this.token) return this;
+    this.loggedIn = true;
     const res = await fetch(`${cfg.om.url}/api/v1/users/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -33,12 +37,21 @@ export class OM {
   }
 
   async req<T = any>(method: string, path: string, body?: unknown, contentType = "application/json"): Promise<T> {
+    const fixedToken = !!this.token && !this.loggedIn;
     await this.login();
-    const res = await fetch(`${cfg.om.url}/api/v1${path}`, {
-      method,
-      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": contentType, Accept: "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    const send = () =>
+      fetch(`${cfg.om.url}/api/v1${path}`, {
+        method,
+        headers: { Authorization: `Bearer ${this.token}`, "Content-Type": contentType, Accept: "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    let res = await send();
+    // admin sessions expire (about an hour): log in again once; a bot's fixed token is never refreshed
+    if (res.status === 401 && !fixedToken) {
+      this.token = undefined;
+      await this.login();
+      res = await send();
+    }
     if (!res.ok) throw new OMError(res.status, `${method} ${path}: ${(await res.text()).slice(0, 400)}`);
     const text = await res.text();
     return (text ? JSON.parse(text) : {}) as T;

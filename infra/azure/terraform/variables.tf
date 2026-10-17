@@ -33,8 +33,15 @@ variable "ssh_public_key" {
 }
 
 variable "ssh_allowed_cidrs" {
-  description = "Source CIDRs allowed to SSH (22). Keep it to your own egress IP."
+  description = "Source CIDRs allowed to SSH (22) when enable_ssh is true. Keep it to your own egress IP."
   type        = list(string)
+  default     = []
+}
+
+variable "enable_ssh" {
+  description = "Open SSH (22) from ssh_allowed_cidrs. Off by default: managed tenants may remove such rules; use infra/azure/push.sh (Run Command)."
+  type        = bool
+  default     = false
 }
 
 variable "model_name" {

@@ -23,7 +23,7 @@ Azure (Terraform). Read this before changing anything.
 | `infra/azure/vm/` | VM bootstrap, Caddyfile, OpenMetadata override |
 | `infra/azure/deploy.sh` | sync repo → VM, ship data, bootstrap (SSH) |
 | `infra/azure/push.sh` | same without SSH: ship code / run commands through Azure Run Command |
-| `infra/azure/demo/` | demo video recorder (Playwright on the VM) and editor |
+| `infra/azure/demo/` | demo video recorders: the real Foundry + OpenMetadata portals (`record-portal.sh`, in the VM's portal browser) and the `/team` page (`record.sh`) |
 
 ## Commands
 
@@ -39,7 +39,7 @@ npm run agents                       # Claude role agents on the laptop (needs C
 npm run dev                          # API :8787 + UI :3100
 ```
 
-Azure: see `infra/azure/README.md` (`terraform apply`, `./infra/azure/deploy.sh --data`, `./infra/azure/demo/record.sh`).
+Azure: see `infra/azure/README.md` (`terraform apply`, `./infra/azure/deploy.sh --data`, `./infra/azure/demo/record-portal.sh`).
 
 ## Invariants (do not break)
 
@@ -65,7 +65,7 @@ Azure: see `infra/azure/README.md` (`terraform apply`, `./infra/azure/deploy.sh 
 - `$rankFusion` needs MongoDB 8.1+ (Atlas Local 8.3 here); older tiers fall back to app-side RRF.
 - agent-memory is built from a pinned commit with hash-checked dependencies (`infra/agent-memory/Dockerfile`).
 - Corporate network clients may block `*.services.ai.azure.com` (and SSH) for non-corporate tenants; the Azure VM is
-  unaffected. Operate it with `infra/azure/push.sh` (Run Command) and record with `infra/azure/demo/record.sh`.
+  unaffected. Operate it with `infra/azure/push.sh` (Run Command) and record with `infra/azure/demo/record-portal.sh` (the portal browser: `infra/azure/vm/portal-up.sh`, you sign in over noVNC; `portal-down.sh` deletes the session).
 - Foundry fails a whole response when one MCP tool errors: keep gateway tool failures as text, keep tool inputs
   lenient (clamp in code, no strict enums/min/max), and only expose OpenMetadata tools that work without its vector
   search (`OM_MCP_AGENT_TOOLS`).

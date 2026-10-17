@@ -13,6 +13,7 @@ import { cfg } from "./config.ts";
 import { getEmbedder } from "./brain/embed.ts";
 import { brainNow, colls } from "./brain/store.ts";
 import { OM } from "./om/client.ts";
+import { derivedTerms } from "./om/agents.ts";
 import { tagValue, teamMemory } from "./agents/memory.ts";
 import { AGENT_NAMES, AGENTS, agentByName } from "./agents/roster.ts";
 import { memoryDb } from "./brain/store.ts";
@@ -143,7 +144,8 @@ async function teamCatalog() {
     const names = new Map<string, string>((l.nodes ?? []).map((n: any) => [n.id, n.displayName ?? n.name]));
     lineage = { upstream: (l.upstreamEdges ?? []).map((e: any) => names.get(e.fromEntity)).filter(Boolean), downstream: (l.downstreamEdges ?? []).map((e: any) => names.get(e.toEntity)).filter(Boolean) };
   } catch {}
-  return { memories, lineage, table: `wisteria_atlas.default.${cfg.memory.db}.memories`, url: OM_PUBLIC };
+  const proposed = (await derivedTerms(om).catch(() => [])).map((t: any) => ({ fqn: t.fullyQualifiedName, name: t.displayName ?? t.name, parent: t.parent?.fullyQualifiedName, status: t.entityStatus ?? t.status, by: /Proposed by the (.+?) from team memory/.exec(String(t.description))?.[1], updatedAt: t.updatedAt }));
+  return { memories, proposed, lineage, table: `wisteria_atlas.default.${cfg.memory.db}.memories`, url: OM_PUBLIC };
 }
 
 function serveStatic(req: IncomingMessage, res: ServerResponse) {
