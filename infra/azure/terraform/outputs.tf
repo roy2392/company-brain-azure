@@ -11,6 +11,11 @@ output "openmetadata_url" {
   value = "https://${local.fqdn}:8443"
 }
 
+output "portal_browser_url" {
+  description = "Chromium in Azure (noVNC), user wisteria; password: ./infra/azure/push.sh --exec 'cat /opt/brain/env/browser.password'"
+  value       = "https://${local.fqdn}:8444/vnc.html?autoconnect=1&resize=scale&path=websockify"
+}
+
 output "ssh" {
   value = "ssh ${var.admin_username}@${azurerm_public_ip.vm.ip_address}"
 }

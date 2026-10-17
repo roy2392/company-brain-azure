@@ -44,7 +44,7 @@ export async function* runAgent(a: WisteriaAgent, task: string, opts: { account?
   const t0 = Date.now();
   const pending: AgentRunEvent[] = [];
   const calls: RunRecord["toolCalls"] = [];
-  const remembered: Array<{ id: string; fact: string; question: string; topic?: string }> = [];
+  const remembered: RunJournal["remembered"] = [];
   const acct = opts.account ? await resolveAccount(opts.account) : null;
   let answer = "";
 
@@ -68,7 +68,7 @@ export async function* runAgent(a: WisteriaAgent, task: string, opts: { account?
     account: acct?.name,
     onRecall: (q, hits) => pending.push({ type: "recall", agent: a.name, query: q, hits }),
     onRemember: (m) => {
-      remembered.push({ id: m.id, fact: m.fact, question: m.question, topic: m.topic });
+      remembered.push({ id: m.id, fact: m.fact, question: m.question, topic: m.topic, concepts: m.concepts, newConcept: m.newConcept });
       pending.push({ type: "remember", agent: a.name, id: m.id, fact: m.fact, question: m.question });
     },
   }).map((t) => tool(t.name, t.description, t.shape, timed(t.name, t.run)));

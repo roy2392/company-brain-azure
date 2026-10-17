@@ -26,6 +26,15 @@
 	}
 }
 
+# Portal browser (noVNC): a Chromium in Azure for portals your network blocks, and for portal demos.
+# Only up while needed: docker compose -f docker-compose.azure.yml --profile portal up -d portal-browser
+{$SITE_HOST}:8444 {
+	basic_auth {
+		{$BROWSER_USER} {$BROWSER_PASSWORD_HASH}
+	}
+	reverse_proxy portal-browser:6080
+}
+
 # OpenMetadata UI and API (OpenMetadata's own login; the admin password is set at bootstrap).
 {$SITE_HOST}:8443 {
 	encode zstd gzip

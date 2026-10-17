@@ -1,7 +1,8 @@
 import { cfg } from "../config.ts";
 import { memoryDb } from "../brain/store.ts";
 import { AGENTS, agentAppName, type WisteriaAgent } from "../agents/roster.ts";
-import { AI_APP, BRAIN_MCP, DATA_PRODUCT, atlasSchemaFqn, inferColumns, teamMap, tolerate, toOmColumn } from "./catalog.ts";
+import { AI_APP, BRAIN_MCP, DATA_PRODUCT, atlasSchemaFqn, inferColumns, teamMap, termFqn, tolerate, toOmColumn } from "./catalog.ts";
+import { CONCEPTS, GLOSSARY } from "./ontology.ts";
 import { OM, ref, type Ref } from "./client.ts";
 import { ensureBotToken } from "./mcp.ts";
 import type { ColSpec, ColType } from "./schemas.ts";
@@ -70,7 +71,11 @@ async function ensureAgentRole(om: OM) {
     name: AGENT_POLICY,
     displayName: "Wisteria agent memory",
     description: "Lets Wisteria's agents create and update Context Center memories. No delete, nothing else.",
-    rules: [{ name: "WriteContextMemories", resources: ["contextMemory"], operations: ["Create", "ViewAll", "EditAll", "EditDescription", "EditDisplayName", "EditOwners", "EditTags"], effect: "allow" }],
+    rules: [
+      { name: "WriteContextMemories", resources: ["contextMemory"], operations: ["Create", "ViewAll", "EditAll", "EditDescription", "EditDisplayName", "EditOwners", "EditTags"], effect: "allow" },
+      // agents may propose glossary terms; reviewers (Data Platform) approve them
+      { name: "ProposeGlossaryTerms", resources: ["glossaryTerm"], operations: ["Create", "ViewAll", "EditDescription", "EditDisplayName"], effect: "allow" },
+    ],
   });
   await om.put("/roles", { name: AGENT_ROLE, displayName: "Wisteria agent", description: "Wisteria role agents: read the catalog, write their own memories.", policies: ["DataConsumerPolicy", AGENT_POLICY] });
 }
@@ -216,16 +221,76 @@ export async function recordExecution(om: OM, a: WisteriaAgent, run: RunRecord) 
   });
 }
 
+// ---------------------------------------------------------------------------------------------- ontology from memory
+
+const conceptKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+const CONCEPT_BY_KEY = new Map(CONCEPTS.map((c) => [conceptKey(c.name), c.name]));
+for (const c of CONCEPTS) CONCEPT_BY_KEY.set(conceptKey(c.displayName), c.name);
+export const CONCEPT_NAMES = CONCEPTS.map((c) => c.name);
+
+/** Ontology concepts an agent named, mapped onto the Wisteria glossary (unknown names are dropped). */
+export function matchConcepts(names: string[] = []): string[] {
+  return [...new Set(names.map((n) => CONCEPT_BY_KEY.get(conceptKey(n))).filter(Boolean) as string[])].slice(0, 3);
+}
+
+export interface NewConcept {
+  name: string;
+  definition?: string;
+  parent?: string;
+}
+
+/**
+ * A business notion an agent learned that the ontology lacks → a glossary term under its parent concept, created by
+ * the agent's bot, owned by its team, reviewed by Data Platform (OpenMetadata puts it In Review), related to the
+ * concepts it touches. The memory is tagged with it. (derivedEntities/usageCount are server-managed in 2.0.5.)
+ */
+async function deriveTerm(om: OM, a: WisteriaAgent, nc: NewConcept, related: string[], memoryId: string): Promise<(Ref & { fullyQualifiedName?: string }) | null> {
+  const display = nc.name.replace(/[^\p{L}\p{N} &-]/gu, "").trim();
+  const name = display.split(/[\s&-]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join("");
+  if (!name || CONCEPT_BY_KEY.has(conceptKey(name))) return null;
+  const parent = matchConcepts([nc.parent ?? ""])[0] ?? related[0];
+  const parentFqn = parent ? termFqn(parent) : undefined;
+  const fqn = `${parentFqn ?? GLOSSARY}.${name}`;
+  const existing = await om.byName<any>("glossaryTerms", fqn).catch(() => null);
+  if (existing) return ref(existing, "glossaryTerm");
+  const teams = await teamMap(om);
+  const body = {
+    glossary: GLOSSARY,
+    ...(parentFqn ? { parent: parentFqn } : {}),
+    name,
+    displayName: display,
+    description: `${nc.definition?.trim() || display}\n\nProposed by the ${a.displayName} from team memory \`${memoryId}\` (agent-memory on MongoDB Atlas) on ${new Date().toISOString().slice(0, 10)}. Pending review by Data Platform.`,
+    owners: [teams[a.team]],
+    reviewers: [teams.DataPlatform],
+  };
+  let term: any;
+  try {
+    term = await (await agentClient(om, a)).put("/glossaryTerms", body);
+  } catch {
+    term = await om.put("/glossaryTerms", body); // the agent's bot may lack permission on older setups
+  }
+  // typed links to the concepts the memory touched (same relation API as the ontology setup)
+  for (const r of related.filter((x) => x !== parent)) {
+    const other = await om.byName<any>("glossaryTerms", termFqn(r)).catch(() => null);
+    if (other) await tolerate(om.req("POST", `/glossaryTerms/${term.id}/relations`, { relationType: "relatedTo", term: { id: other.id, type: "glossaryTerm" } }));
+  }
+  return { ...ref(term, "glossaryTerm"), fullyQualifiedName: term.fullyQualifiedName };
+}
+
 /** A memory an agent saved → a shared, entity-scoped Context Center memory (agent-memory on Atlas stays the record). */
-export async function promoteMemory(om: OM, a: WisteriaAgent, m: { id: string; fact: string; question: string; account?: string; topic?: string; runId: string }) {
+export async function promoteMemory(om: OM, a: WisteriaAgent, m: { id: string; fact: string; question: string; account?: string; topic?: string; runId: string; concepts?: string[]; newConcept?: NewConcept }) {
   const app = await appRef(om, a);
   if (!app) return null;
   const teams = await teamMap(om);
   const others = (await Promise.all(AGENTS.filter((x) => x.name !== a.name).map((x) => appRef(om, x)))).filter(Boolean) as Ref[];
   const table = await memoryTable(om, "memories");
   const title = m.question.length > 120 ? `${m.question.slice(0, 117)}…` : m.question;
+  const concepts = matchConcepts(m.concepts);
+  // the ontology grows from memory: a proposed concept becomes a glossary term (in review) and tags this memory
+  const derived = m.newConcept?.name ? await deriveTerm(om, a, m.newConcept, concepts, m.id).catch(() => null) : null;
+  const tags = [...concepts.map(termFqn), ...(derived?.fullyQualifiedName ? [derived.fullyQualifiedName] : [])];
   // written by the agent's own bot, so OpenMetadata shows the agent as the author
-  return (await agentClient(om, a)).put("/contextCenter/memories", {
+  const memory = await (await agentClient(om, a)).put("/contextCenter/memories", {
     name: `${MEMORY_PREFIX}${m.id}`,
     displayName: title,
     title,
@@ -240,7 +305,9 @@ export async function promoteMemory(om: OM, a: WisteriaAgent, m: { id: string; f
     shareConfig: { visibility: "Shared", sharedWith: [...new Set(AGENTS.map((x) => x.team))].map((t) => ({ principal: teams[t], role: "Viewer" })) },
     owners: [teams[a.team]],
     description: `Written by the ${a.displayName} on ${new Date().toISOString().slice(0, 10)}${m.account ? ` about ${m.account}` : ""}${m.topic ? ` (${m.topic})` : ""}. Memory of record: MongoDB Atlas \`${cfg.memory.db}.memories\` _id \`${m.id}\`, agent-memory space \`${cfg.memory.team}\`, run \`${a.name}:${m.runId}\`.`,
+    tags: tags.map((fqn) => ({ tagFQN: fqn, source: "Glossary", labelType: "Manual", state: "Confirmed" })),
   });
+  return memory;
 }
 
 /** Demo reset: remove the Context Center mirror of the agents' memories. */

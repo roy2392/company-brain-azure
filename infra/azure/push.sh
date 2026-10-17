@@ -14,8 +14,15 @@ run() { az vm run-command invoke -g "$RG" -n "$VM" --subscription "$SUB" --comma
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+# A command runs as the admin user from the repo. It is shipped base64-encoded and run with bash,
+# because Run Command executes its script with sh.
+remote_cmd() {
+  printf 'echo %s | base64 -d > /opt/brain/data/cmd.sh && chown brain:brain /opt/brain/data/cmd.sh && cd /opt/brain/app && sudo -u brain bash /opt/brain/data/cmd.sh\n' \
+    "$(printf '%s\n' "$1" | base64 | tr -d '\n')"
+}
+
 if [[ "${1:-}" == "--exec" ]]; then
-  printf 'cd /opt/brain/app\nsudo -u brain bash -lc %q\n' "$2" > "$TMP/exec.sh"
+  remote_cmd "$2" > "$TMP/exec.sh"
   run "$TMP/exec.sh"
   exit
 fi
@@ -38,6 +45,6 @@ base64 -d /opt/brain/data/push.b64 | tar --warning=no-unknown-keyword -xz -C /op
 chown -R brain:brain /opt/brain/app
 rm -f /opt/brain/data/push.b64
 echo "code synced to /opt/brain/app"
-${1:+cd /opt/brain/app && sudo -u brain bash -lc $(printf %q "$1")}
 EOF
+if [[ -n "${1:-}" ]]; then remote_cmd "$1" >> "$TMP/apply.sh"; fi
 run "$TMP/apply.sh"

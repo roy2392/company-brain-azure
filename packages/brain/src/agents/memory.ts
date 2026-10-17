@@ -18,7 +18,12 @@ export interface MemoryItem {
   conversation_id: string;
   enrichment_status?: string;
   final_score?: number;
+  /** a long-term memory points back at the short-term memory it was promoted from */
+  source_stm_id?: string | null;
 }
+
+/** The id a memory is known by everywhere (OpenMetadata mirror, citations, the /team feed): its short-term id. */
+export const canonicalId = (m: Pick<MemoryItem, "_id" | "source_stm_id">) => String(m.source_stm_id ?? m._id);
 
 export interface ActivityTurn {
   _id?: string;
@@ -56,8 +61,8 @@ export const teamMemory = {
   },
 
   /** One self-contained fact, attributed to the agent that learned it. Returns the memory id. */
-  async remember(agent: string, fact: string, opts: { runId: string; account?: string; topic?: string }) {
-    const tags = [`agent:${agent}`, ...(opts.account ? [`account:${opts.account}`] : []), ...(opts.topic ? [`topic:${opts.topic}`] : [])];
+  async remember(agent: string, fact: string, opts: { runId: string; account?: string; topic?: string; concepts?: string[] }) {
+    const tags = [`agent:${agent}`, ...(opts.account ? [`account:${opts.account}`] : []), ...(opts.topic ? [`topic:${opts.topic}`] : []), ...(opts.concepts ?? []).map((c) => `concept:${c}`)];
     const r = await call<{ stm_ids: string[] }>("POST", "/memories", {
       body: { user_id: this.team, conversation_id: `${agent}:${opts.runId}`, messages: [{ message_type: "human", content: fact, tags }] },
     });
@@ -67,7 +72,10 @@ export const teamMemory = {
   /** Hybrid recall over the team's memories (vector + full text, importance- and recency-ranked). */
   async recall(query: string, limit = 8): Promise<MemoryItem[]> {
     const r = await call<MemoryItem[] | { results: MemoryItem[] }>("GET", "/memories/recall", { query: { user_id: this.team, query, limit } });
-    return Array.isArray(r) ? r : (r?.results ?? []);
+    const hits = Array.isArray(r) ? r : (r?.results ?? []);
+    // recall may return the long-term copy; report every memory under its short-term id, once
+    const seen = new Set<string>();
+    return hits.map((m) => ({ ...m, _id: canonicalId(m) })).filter((m) => !seen.has(m._id) && seen.add(m._id));
   },
 
   /** Episodic tier: what an agent did (task, tool calls, answer), searchable by every agent. */

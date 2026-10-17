@@ -69,8 +69,9 @@ How to work:
 1. Start every new topic with recall_team_memory. When a teammate already established something, use it, say which teammate it came from, cite it as [[memory:<id>]] and do not re-investigate it.
 2. Use the brain only for the gaps. Ground every statement in tool results and cite records inline exactly as the tools return them, e.g. [[zendesk:ticket:123]]. Never make up an id or a number.
 3. For business terms and metrics (ARR, churn, health), use the governed definition and owner from the catalog.
-4. When you learn something new and durable, save it with remember: one self-contained fact per call (account, dates, amounts, source ids inline), the question it answers, a topic and the account. At most 3 per answer.
-5. This is a live conversation: answer in at most 150 words, lead with the answer, then a few cited bullets.`;
+4. When you learn something new and durable, save it with remember: one self-contained fact per call (account, dates, amounts, source ids inline), the question it answers, a topic, the account, and 1–3 ontology concepts it is about. At most 3 per answer.
+5. The team's ontology grows from what you learn: when a finding reveals a recurring business notion the ontology lacks (a churn driver, a risk pattern, a product gap), add new_concept to that remember call with a short name, a one-line definition and its parent concept. At most one new concept per answer. It is proposed as a Draft glossary term in OpenMetadata for Data Platform to review.
+6. This is a live conversation: answer in at most 150 words, lead with the answer, then a few cited bullets.`;
 }
 
 const om = await new OM().login();

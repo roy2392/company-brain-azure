@@ -13,7 +13,8 @@ resource "azurerm_subnet" "vm" {
   address_prefixes     = ["10.42.1.0/24"]
 }
 
-# Only four doors: SSH from your IP, and Caddy on 80 (ACME + redirect), 443 (app + agent gateway), 8443 (OpenMetadata UI).
+# Only these doors: SSH from your IP, and Caddy on 80 (ACME + redirect), 443 (app + agent gateway), 8443 (OpenMetadata UI),
+# 8444 (portal browser, basic auth, only up on demand).
 # Every other container port (Atlas 27017, OpenMetadata 8585, agent-memory 8000, Fuseki 3030, ...) is closed here.
 resource "azurerm_network_security_group" "vm" {
   name                = "nsg-${local.name}"
@@ -40,7 +41,7 @@ resource "azurerm_network_security_group" "vm" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_ranges    = ["80", "443", "8443"]
+    destination_port_ranges    = ["80", "443", "8443", "8444"]
     source_address_prefix      = "Internet"
     destination_address_prefix = "*"
   }

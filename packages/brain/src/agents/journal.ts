@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { cfg } from "../config.ts";
 import type { OM } from "../om/client.ts";
-import { promoteMemory, recordExecution, type RunRecord } from "../om/agents.ts";
+import { promoteMemory, recordExecution, type NewConcept, type RunRecord } from "../om/agents.ts";
 import { agentByName } from "./roster.ts";
 
 /**
@@ -12,7 +12,7 @@ import { agentByName } from "./roster.ts";
 export interface RunJournal extends RunRecord {
   agent: string;
   account?: string;
-  remembered: Array<{ id: string; fact: string; question: string; topic?: string }>;
+  remembered: Array<{ id: string; fact: string; question: string; topic?: string; concepts?: string[]; newConcept?: NewConcept }>;
   om: { execution?: string; memories: string[] };
 }
 

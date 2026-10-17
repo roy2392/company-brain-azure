@@ -59,6 +59,22 @@ services:
     networks:
       - brain_net
 
+  # Chromium in Azure behind noVNC (port 8444 via Caddy); started on demand with --profile portal
+  portal-browser:
+    container_name: brain_portal_browser
+    build: ./infra/azure/vm/portal-browser
+    image: wisteria/portal-browser:1
+    profiles: ["portal"]
+    shm_size: "2gb"
+    environment:
+      OM_URL: https://${SITE_HOST}:8443
+    volumes:
+      - portal-profile:/profile
+      - ./infra/azure/demo:/demo:ro
+      - /opt/brain/data/demo:/out
+    networks:
+      - brain_net
+
   caddy:
     container_name: brain_caddy
     image: caddy:2
@@ -67,6 +83,7 @@ services:
       - "80:80"
       - "443:443"
       - "8443:8443"
+      - "8444:8444"
     env_file: /opt/brain/env/caddy.env
     volumes:
       - ./infra/azure/vm/Caddyfile:/etc/caddy/Caddyfile:ro
@@ -84,6 +101,7 @@ volumes:
   brain-node-modules:
   caddy-data:
   caddy-config:
+  portal-profile:
 
 networks:
   brain_net:

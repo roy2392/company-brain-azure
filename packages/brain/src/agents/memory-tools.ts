@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { resolveAccount } from "../brain/tools.ts";
+import { CONCEPT_NAMES, matchConcepts, type NewConcept } from "../om/agents.ts";
 import { AGENT_NAMES, AGENTS, type WisteriaAgent } from "./roster.ts";
 import { memoryId, tagValue, teamMemory } from "./memory.ts";
 
@@ -12,7 +13,7 @@ export interface MemoryToolHooks {
   /** account the run is about, when the runtime knows it (tagged on every memory) */
   account?: string;
   onRecall?(query: string, hits: Array<{ id: string; by: string; content: string }>): void;
-  onRemember?(m: { id: string; fact: string; question: string; topic?: string; account?: string }): void | Promise<void>;
+  onRemember?(m: { id: string; fact: string; question: string; topic?: string; account?: string; concepts?: string[]; newConcept?: NewConcept }): void | Promise<void>;
 }
 
 export interface MemoryTool {
@@ -45,14 +46,20 @@ export function memoryTools(a: WisteriaAgent, hooks: MemoryToolHooks): MemoryToo
         question: z.string().optional().describe("The question this fact answers, e.g. 'Why did Novaris Holdings churn?'"),
         topic: z.string().optional().describe("Short topic tag, e.g. escalations, churn-reason, arr-impact"),
         account: z.string().optional().describe("The customer this is about, e.g. 'Novaris Holdings'"),
+        concepts: z.array(z.string()).optional().describe(`1–3 Wisteria ontology concepts this fact is about, from: ${CONCEPT_NAMES.join(", ")}`),
+        new_concept: z
+          .object({ name: z.string(), definition: z.string().optional(), parent: z.string().optional() })
+          .optional()
+          .describe("Only when the fact reveals a recurring business notion the ontology lacks (e.g. a churn driver or a risk pattern): its name, a one-line definition, and its parent concept from the list above."),
       },
-      async run({ fact, question, topic, account }) {
+      async run({ fact, question, topic, account, concepts: named, new_concept }) {
+        const concepts = matchConcepts(named);
         const name = account ?? hooks.account;
         const acct = name ? await resolveAccount(name) : null;
-        const id = await teamMemory.remember(a.name, fact, { runId: hooks.runId, account: acct?._id.replace(/^account:/, ""), topic });
+        const id = await teamMemory.remember(a.name, fact, { runId: hooks.runId, account: acct?._id.replace(/^account:/, ""), topic, concepts });
         const q = question?.trim() || `What did the ${a.displayName} learn${acct?.name || name ? ` about ${acct?.name ?? name}` : ""}${topic ? ` (${topic})` : ""}?`;
-        await hooks.onRemember?.({ id, fact, question: q, topic, account: acct?.name ?? name });
-        return `Saved to team memory as [[${memoryId(id)}]].`;
+        await hooks.onRemember?.({ id, fact, question: q, topic, account: acct?.name ?? name, concepts, newConcept: new_concept?.name ? new_concept : undefined });
+        return `Saved to team memory as [[${memoryId(id)}]]${concepts.length ? ` (concepts: ${concepts.join(", ")})` : ""}${new_concept?.name ? `; proposed new concept "${new_concept.name}" for the ontology` : ""}.`;
       },
     },
     {
