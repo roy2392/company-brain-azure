@@ -7,10 +7,10 @@ import { SOURCE_META, TOOL_VERB, toolReach } from "./sources.ts";
 import type { Citation, Source, Status, ToolCall, Turn } from "./types.ts";
 
 const SUGGESTIONS = [
-  "Is Acacia Partners at risk of churning? Show me the evidence.",
+  "Is Novaris Holdings at risk? Show me the evidence.",
   "What changed at Wisteria this quarter?",
   "How do we define ARR, and who owns that number?",
-  "Who should I talk to before the next Absolis renewal call?",
+  "Which datasets with personal data feed the Company Brain agent, and who owns them?",
 ];
 
 const uid = () => Math.random().toString(36).slice(2, 10);

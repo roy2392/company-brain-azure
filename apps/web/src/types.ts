@@ -1,4 +1,4 @@
-export type Source = "salesforce" | "zendesk" | "gong" | "slack" | "jira" | "confluence" | "drive" | "openmetadata";
+export type Source = "salesforce" | "zendesk" | "gong" | "slack" | "jira" | "confluence" | "drive" | "openmetadata" | "memory";
 
 export interface Citation {
   id: string;

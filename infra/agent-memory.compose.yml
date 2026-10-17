@@ -1,0 +1,48 @@
+# agent-memory (github.com/mongodb-partners/agent-memory): shared long-term memory for the Wisteria agents.
+# Four tiers (short-term, long-term, episodic, semantic cache) in the same Atlas Local, database `agent_memory`.
+# REST on :8000/ and MCP on :8000/mcp. Embeddings and enrichment run locally on Ollama (OpenAI-compatible API).
+services:
+  agent-memory:
+    container_name: brain_agent_memory
+    build:
+      context: ./agent-memory
+      args:
+        AGENT_MEMORY_REF: 5d5daaef4e1d6eb550dc015bbb963a814002eec0
+        # wheels are hash-checked against uv.lock, so a PyPI mirror is safe where files.pythonhosted.org is blocked
+        PIP_INDEX_URL: ${AGENT_MEMORY_PIP_INDEX_URL:-https://pypi.org/simple}
+    image: wisteria/agent-memory:5d5daae
+    restart: unless-stopped
+    depends_on:
+      atlas:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      MONGODB_CONNECTION_STRING: mongodb://atlas:27017/?directConnection=true
+      MONGODB_DATABASE_NAME: agent_memory
+      TRANSPORT: both
+      HOST: 0.0.0.0
+      # published on 127.0.0.1 only; agents run on this machine
+      ALLOW_UNAUTHENTICATED_NETWORK_ACCESS: "true"
+      EMBEDDING_PROVIDER: openai
+      LLM_PROVIDER: openai
+      OPENAI_BASE_URL: ${AGENT_MEMORY_OPENAI_BASE_URL:-http://host.docker.internal:11434/v1}
+      OPENAI_API_KEY: ${AGENT_MEMORY_OPENAI_API_KEY:-ollama}
+      OPENAI_MODEL: ${AGENT_MEMORY_LLM_MODEL:-qwen2.5:3b}
+      OPENAI_EMBEDDING_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      EMBEDDING_DIMENSION: "768"
+      IMPORTANCE_SCORER: local
+      ENRICHMENT_INTERVAL_SECONDS: "5"
+      # keep the demo's memories through the weekend
+      STM_TTL_HOURS: "720"
+      EPISODIC_RETENTION_DAYS: "90"
+      AUDIT_FALLBACK_PATH: /tmp/audit_fallback.jsonl
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      - brain_net

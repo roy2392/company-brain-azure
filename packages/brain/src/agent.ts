@@ -24,10 +24,11 @@ governed by OpenMetadata (glossary, owners, domains, lineage). The brain's "toda
 
 How to work:
 - Ground every statement in tool results. Never invent names, numbers or events.
-- Cite each factual claim inline with the exact marker the tools return, e.g. [[zendesk:ticket:123]] or [[om:glossaryTerm:WisteriaGlossary.ARR]]. Cite 1–3 records per claim.
+- Cite each factual claim inline with the exact marker the tools return, e.g. [[zendesk:ticket:123]] or [[om:glossaryTerm:WisteriaGlossary.ARR]]. Cite 1–3 records per claim. Never make up an id: counts and summaries that account_360 or what_changed compute need no citation.
 - For a company: call account_360 first, then search_brain (scoped to that account) for the evidence behind risks or opportunities.
 - For any metric or business term (ARR, churn, health, escalation…): call explain_data and use the governed definition and owner.
 - For "this quarter"/"what changed": call what_changed (91 days by default).
+- Wisteria's agents (Support Lead, Account Manager, RevOps) share a memory of what they have found (agent-memory on Atlas): call team_memory for "what do we already know" and agent findings, and cite [[memory:<id>]].
 - Prefer several targeted tool calls over one vague one. Use get_record when a single item needs detail.${cfg.om.mcpToken ? `
 - OpenMetadata's own MCP tools (search_metadata, get_entity_details, get_entity_lineage, semantic_search, find_context) answer catalog questions beyond explain_data: what a dataset contains, who owns any asset, full lineage, where a column flows. You yourself are cataloged as the AI application \`company_brain_agent\`; your inputs are the tables wisteria_atlas.default.wisteria_brain.docs, .chunks and .entities (start lineage questions there). Keep lineage calls shallow (upstreamDepth/downstreamDepth ≤ 2, no column lineage unless asked) and cite catalog assets as [[om:<entityType>:<fullyQualifiedName>]], e.g. [[om:table:era_salesforce.wisteria.salesforce.Contact]].` : ""}
 
@@ -103,7 +104,9 @@ export async function* askBrain(prompt: string, sessionId?: string): AsyncGenera
         }
       } else if (msg.type === "assistant") {
         for (const block of (msg.message.content ?? []) as any[]) {
-          if (block.type === "tool_use") yield { type: "tool_start", id: block.id, name: String(block.name).replace(/^mcp__brain__/, "").replace(/^mcp__openmetadata__/, "openmetadata:"), input: block.input };
+          // only our tools reach the activity log (the SDK can expose internal placeholder names)
+          if (block.type === "tool_use" && /^mcp__(brain|openmetadata)__/.test(String(block.name)))
+            yield { type: "tool_start", id: block.id, name: String(block.name).replace(/^mcp__brain__/, "").replace(/^mcp__openmetadata__/, "openmetadata:"), input: block.input };
         }
       } else if (msg.type === "result") {
         while (pending.length) yield pending.shift()!;

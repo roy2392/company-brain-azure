@@ -8,10 +8,12 @@ const date = (s: string) => new Date(s).toLocaleDateString("en-US", { month: "sh
 export function AccountCard({ data }: { data: any }) {
   const a = data.account ?? {};
   const facts = [
-    ["Type", a.type],
+    ["Status", data.commercial?.churnedAt ? `Churn recorded ${data.commercial.churnedAt}` : a.type],
     ["Industry", a.industry],
-    ["Region", a.region],
     ["Owner", a.owner],
+    ["Renewal", data.commercial?.renewalDate],
+    ["Seats", data.commercial?.seats],
+    ["Region", a.region],
   ].filter(([, v]) => v);
   const activity = VINE_ORDER.filter((s) => s !== "openmetadata")
     .map((s) => [s, data.activity?.[s]?.last90 ?? 0] as const)
@@ -45,7 +47,7 @@ export function AccountCard({ data }: { data: any }) {
         </div>
         <div className={data.support?.escalations ? "is-alert" : ""}>
           <strong>{data.support?.escalations ?? 0}</strong>
-          <span>Escalations</span>
+          <span>Escalations, 90 days</span>
         </div>
       </div>
       {activity.length > 0 && (

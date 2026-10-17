@@ -15,8 +15,10 @@ export class OMError extends Error {
 
 /** Thin OpenMetadata REST client (PUT = create-or-update, so every setup step is idempotent). */
 export class OM {
-  private token?: string;
   readonly ui = cfg.om.url;
+
+  /** No token: logs in as the admin. With a token: acts as that user or bot. */
+  constructor(private token?: string) {}
 
   async login(): Promise<this> {
     if (this.token) return this;

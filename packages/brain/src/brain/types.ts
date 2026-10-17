@@ -65,7 +65,7 @@ export interface ConnectorOutput {
 
 export interface Citation {
   id: string; // BrainDoc _id, or om:<type>:<fqn> for catalog assets
-  source: Source | "openmetadata";
+  source: Source | "openmetadata" | "memory";
   kind: string;
   title: string;
   url?: string;

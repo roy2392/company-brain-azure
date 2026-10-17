@@ -57,5 +57,34 @@ export const cfg = {
   agent: {
     model: env("BRAIN_MODEL", "claude-sonnet-5-5"),
   },
+  /** agent-memory (github.com/mongodb-partners/agent-memory): the Wisteria agents' shared memory, in the same Atlas */
+  memory: {
+    url: env("AGENT_MEMORY_URL", "http://localhost:8000"),
+    db: env("AGENT_MEMORY_DB", "agent_memory"),
+    /** one memory space every Wisteria agent reads and writes */
+    team: env("AGENT_MEMORY_TEAM", "wisteria-revenue-team"),
+    llmModel: env("AGENT_MEMORY_LLM_MODEL", "qwen2.5:3b"),
+  },
+  /** Foundry agents reach the brain only through this gateway, exposed with a Microsoft Dev Tunnel */
+  gateway: {
+    port: Number(env("FOUNDRY_GATEWAY_PORT", "8790")),
+    /** 0.0.0.0 inside the VM's container network (Caddy terminates TLS in front) */
+    host: env("FOUNDRY_GATEWAY_HOST", "127.0.0.1"),
+    /** per-agent keys are HMACs of this secret (npm run foundry:agents creates it) */
+    secret: env("FOUNDRY_GATEWAY_SECRET"),
+    /** the tunnel's public https URL */
+    publicUrl: env("FOUNDRY_GATEWAY_URL"),
+  },
+  /** the Microsoft Foundry project that hosts the Wisteria agents */
+  foundry: {
+    endpoint: env("FOUNDRY_PROJECT_ENDPOINT"),
+    model: env("FOUNDRY_AGENT_MODEL", "gpt-5.4"),
+    /** on the Azure VM: tokens from the managed identity instead of az login */
+    useManagedIdentity: env("FOUNDRY_USE_MANAGED_IDENTITY") === "1",
+    subscription: env("FOUNDRY_SUBSCRIPTION_ID"),
+    resourceGroup: env("FOUNDRY_RESOURCE_GROUP"),
+    account: env("FOUNDRY_ACCOUNT"),
+    project: env("FOUNDRY_PROJECT"),
+  },
   focusAccounts: Number(env("BRAIN_FOCUS_ACCOUNTS", "40")),
 };

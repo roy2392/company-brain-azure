@@ -1,0 +1,26 @@
+# TLS for the VM's Azure DNS name (Let's Encrypt over HTTP-01 on port 80).
+{$SITE_HOST} {
+	encode zstd gzip
+
+	# Foundry agents → gateway. No basic auth here: every request needs that agent's own key (checked by the gateway).
+	@gateway path /agents/*
+	handle @gateway {
+		reverse_proxy brain:8790 {
+			flush_interval -1
+		}
+	}
+
+	# The web app and its API (/team) for people.
+	handle {
+		basic_auth {
+			{$WEB_USER} {$WEB_PASSWORD_HASH}
+		}
+		reverse_proxy brain:8787
+	}
+}
+
+# OpenMetadata UI and API (OpenMetadata's own login; the admin password is set at bootstrap).
+{$SITE_HOST}:8443 {
+	encode zstd gzip
+	reverse_proxy openmetadata-server:8585
+}

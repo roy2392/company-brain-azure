@@ -23,6 +23,12 @@
     "start": "npm run start -w @wisteria/brain",
     "sparql": "npm run sparql -w @wisteria/brain --",
     "om:mcp": "npm run om:mcp -w @wisteria/brain --",
-    "ask": "npm run ask -w @wisteria/brain --"
+    "ask": "npm run ask -w @wisteria/brain --",
+    "era:call": "npm run era:call -w @wisteria/brain --",
+    "agents": "npm run agents -w @wisteria/brain --",
+    "gateway": "npm run gateway -w @wisteria/brain --",
+    "foundry:agents": "npm run foundry:agents -w @wisteria/brain --",
+    "indexes": "npm run indexes -w @wisteria/brain --",
+    "team:reset": "npm run team:reset -w @wisteria/brain --"
   }
 }

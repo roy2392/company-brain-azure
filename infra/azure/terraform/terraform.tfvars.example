@@ -1,0 +1,7 @@
+subscription_id   = "00000000-0000-0000-0000-000000000000"
+location          = "swedencentral"
+ssh_public_key    = "ssh-ed25519 AAAA... you@laptop"
+ssh_allowed_cidrs = ["203.0.113.7/32"] # your egress IP: curl -s https://api.ipify.org
+# model_name     = "gpt-5.4"
+# model_version  = "2026-03-05"
+# model_capacity = 100

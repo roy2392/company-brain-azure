@@ -9,9 +9,10 @@ export const SOURCE_META: Record<Source, { label: string; short: string; color: 
   confluence: { label: "Confluence", short: "Confluence", color: "#4F86AE" },
   drive: { label: "Google Drive", short: "Drive", color: "#6C8A2E" },
   openmetadata: { label: "OpenMetadata", short: "Catalog", color: "#3F6B47" },
+  memory: { label: "Team memory · agent-memory on Atlas", short: "Memory", color: "#9A4A2E" },
 };
 
-export const VINE_ORDER: Source[] = ["salesforce", "zendesk", "gong", "slack", "jira", "confluence", "drive", "openmetadata"];
+export const VINE_ORDER: Source[] = ["salesforce", "zendesk", "gong", "slack", "jira", "confluence", "drive", "openmetadata", "memory"];
 
 /** Which systems a tool call reaches into — drives the vine while the agent is working. */
 export function toolReach(name: string, input: Record<string, unknown>): Source[] {
@@ -25,6 +26,8 @@ export function toolReach(name: string, input: Record<string, unknown>): Source[
       return all;
     case "explain_data":
       return ["openmetadata"];
+    case "team_memory":
+      return ["memory"];
     case "related_entities":
       return ["salesforce", "slack"];
     default:
@@ -41,4 +44,5 @@ export const TOOL_VERB: Record<string, string> = {
   what_changed: "Comparing this quarter with the last",
   explain_data: "Checking the catalog",
   get_record: "Opening a record",
+  team_memory: "Recalling what the agents learned",
 };

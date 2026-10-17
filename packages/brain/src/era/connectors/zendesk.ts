@@ -69,8 +69,59 @@ export async function pullZendesk(era: EraClient, ctx: PullContext): Promise<Con
       const org = orgs.find((o) => o.id === u.organization_id);
       return entity("person", personId(u.email), u.name, "zendesk", { email: u.email, internal: u.role !== "end-user", title: u.user_fields?.title }, org ? [{ to: org._account, rel: "contact_of", source: "zendesk" }] : []);
     });
+  // the account record (ARR, seats, renewal, status) lives on the Zendesk organization
+  const auditRows: any[] = [];
+  for (const o of orgs) {
+    const f = o.organization_fields ?? {};
+    docs.push({
+      _id: docId("zendesk", "account-record", o.id),
+      source: "zendesk",
+      kind: "account-record",
+      sourceId: String(o.id),
+      title: `${o.name}: account record`,
+      text: `${o.name} account record (Zendesk organization ${o.id}). ARR: ${f.arr ? `$${Number(f.arr).toLocaleString("en-US")}` : "n/a"}. Seats: ${f.seats ?? "n/a"} on the ${f.plan ?? "n/a"} plan (${f.tier ?? "n/a"}). Renewal date: ${f.renewal_date ?? "n/a"}. Account status: ${f.account_status ?? "n/a"}. Account owner: ${f.account_owner ?? "n/a"}. Signed on: ${f.signed_on ?? "n/a"}. Domain: ${(o.domain_names ?? []).join(", ")}. Notes: ${o.notes ?? ""}`,
+      ts: asDate(o.updated_at, ctx.now),
+      accountIds: [o._account],
+      personIds: [],
+      meta: { arr: Number(f.arr) || null, seats: f.seats, plan: f.plan, renewalDate: f.renewal_date, status: f.account_status },
+    });
+    entities.push(
+      entity("account", o._account, o.name, "zendesk", {
+        arr: Number(f.arr) || undefined,
+        seats: f.seats,
+        plan: f.plan,
+        tier: f.tier,
+        renewalDate: f.renewal_date,
+        accountStatus: f.account_status,
+        accountOwner: f.account_owner,
+        domain: (o.domain_names ?? [])[0],
+      }),
+    );
+  }
+  // organization audit events: customers created, churned, updated
+  const audits = await era.rest<any>("/api/v2/audit_logs.json", { query: { "filter[source_type]": "organization" } }).catch(() => null);
+  for (const a of audits?.audit_logs ?? []) {
+    const acct = accountId(a.source_label ?? "");
+    auditRows.push(a);
+    docs.push({
+      _id: docId("zendesk", "account-event", a.id),
+      source: "zendesk",
+      kind: "account-event",
+      sourceId: String(a.id),
+      title: `${a.source_label}: ${a.change_description}`,
+      text: `${a.source_label} — ${a.change_description} (${a.action_label ?? a.action}) by ${a.actor_name} on ${String(a.created_at).slice(0, 10)}. Zendesk organization ${a.source_id}.`,
+      ts: asDate(a.created_at, ctx.now),
+      accountIds: [acct],
+      personIds: [],
+      meta: { action: a.action, change: a.change_description, actor: a.actor_name, organizationId: a.source_id },
+    });
+    if (/churn/i.test(a.change_description ?? "")) entities.push(entity("account", acct, a.source_label, "zendesk", { churnedAt: String(a.created_at).slice(0, 10) }));
+  }
+  ctx.log(`   zendesk: ${auditRows.length} organization audit events (created, churned, updated)`);
+
   return {
     raw: [
+      ...(auditRows.length ? [{ collection: "raw_zendesk_audit_logs", source: "zendesk" as const, object: "audit_logs", description: "Organization change history: customers created, churned and updated.", docs: auditRows.map((a) => rawDoc(a.id, a)) }] : []),
       { collection: "raw_zendesk_organizations", source: "zendesk", object: "organizations", description: "Customer organizations in the help desk.", docs: orgs.map(({ _account, ...o }) => rawDoc(o.id, { ...o, account: _account })) },
       { collection: "raw_zendesk_tickets", source: "zendesk", object: "tickets", description: "Support tickets for focus accounts, with priority and status.", docs: tickets.map(({ _account, _org, ...t }) => rawDoc(t.id, { ...t, account: _account, comments: comments.get(t.id) ?? null })) },
       { collection: "raw_zendesk_users", source: "zendesk", object: "users", description: "Requesters and agents.", docs: [...users.values()].map((u) => rawDoc(u.id, u)) },

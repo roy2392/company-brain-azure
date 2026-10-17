@@ -1,0 +1,46 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - rsync
+  - jq
+  - openssl
+
+write_files:
+  - path: /etc/sysctl.d/99-elasticsearch.conf
+    content: |
+      vm.max_map_count=262144
+  # Settings and secrets from Terraform. infra/azure/vm/bootstrap.sh turns this into the app's .env.
+  - path: /opt/brain/env/azure.env
+    permissions: "0600"
+    owner: "${admin_username}:${admin_username}"
+    defer: true
+    content: |
+      SITE_HOST='${fqdn}'
+      OPENMETADATA_ADMIN_PASSWORD='${om_admin_password}'
+      WEB_USER='${web_username}'
+      WEB_PASSWORD='${web_password}'
+      FOUNDRY_AGENT_KEYS='${agent_keys_json}'
+      JWT_KEY_ID='${jwt_kid}'
+      FERNET_KEY='${fernet_key}'
+      FOUNDRY_SUBSCRIPTION_ID='${subscription_id}'
+      FOUNDRY_RESOURCE_GROUP='${resource_group}'
+      FOUNDRY_ACCOUNT='${foundry_account}'
+      FOUNDRY_PROJECT='${foundry_project}'
+      FOUNDRY_PROJECT_ENDPOINT='${foundry_endpoint}'
+      FOUNDRY_AGENT_MODEL='${model_name}'
+      FOUNDRY_GATEWAY_URL='https://${fqdn}'
+  - path: /opt/brain/secrets/jwt/private.pem
+    permissions: "0600"
+    owner: "${admin_username}:${admin_username}"
+    defer: true
+    content: |
+      ${indent(6, jwt_private_pem)}
+
+runcmd:
+  - sysctl --system
+  - systemctl enable --now docker
+  - usermod -aG docker ${admin_username}
+  - mkdir -p /opt/brain/app /opt/brain/data
+  - chown -R ${admin_username}:${admin_username} /opt/brain

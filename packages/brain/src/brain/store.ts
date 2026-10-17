@@ -13,6 +13,12 @@ export async function getDb(): Promise<Db> {
   return db;
 }
 
+/** agent-memory's database in the same cluster (record lookups and resets; writes go through its API). */
+export async function memoryDb(): Promise<Db> {
+  await getDb();
+  return client!.db(cfg.memory.db);
+}
+
 export async function closeDb() {
   await client?.close();
   client = undefined;

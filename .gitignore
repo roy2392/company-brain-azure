@@ -5,3 +5,11 @@ dist/
 .cache/
 *.log
 .DS_Store
+
+# Terraform (infra/azure/terraform): state and tfvars hold secrets; the lock file is committed
+infra/azure/terraform/.terraform/
+infra/azure/terraform/*.tfstate
+infra/azure/terraform/*.tfstate.*
+infra/azure/terraform/*.tfvars
+!infra/azure/terraform/terraform.tfvars.example
+infra/azure/terraform/*.tfplan

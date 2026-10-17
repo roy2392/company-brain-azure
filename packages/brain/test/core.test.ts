@@ -64,7 +64,7 @@ describe("inferColumns", () => {
     expect(by.CloseDate.dataType).toBe("TIMESTAMP");
     expect(by.Tags).toMatchObject({ dataType: "ARRAY", arrayDataType: "STRING" });
     expect(by.Email.tags.map((t: any) => t.tagFQN)).toContain("PII.Sensitive");
-    expect(by.Amount.tags.map((t: any) => t.tagFQN)).toContain("WisteriaGlossary.ARR");
+    expect(by.Amount.tags.map((t: any) => t.tagFQN)).toContain("WisteriaGlossary.Pipeline");
     expect(by.StageName.tags.map((t: any) => t.tagFQN)).toContain("WisteriaGlossary.Pipeline");
     expect(by.Amount.description).toBe("Deal value (USD)");
   });

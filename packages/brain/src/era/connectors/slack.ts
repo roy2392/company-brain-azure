@@ -58,7 +58,7 @@ export async function pullSlack(era: EraClient, ctx: PullContext, accountSlugs: 
   await mapLimit(picked, 4, async ({ c, acct }) => {
     if (acct) channelsByAcct.set(acct, [...(channelsByAcct.get(acct) ?? []), c.name]);
     const history = await paged("conversations.history", "messages", { channel: c.id, limit: 200, oldest }, c.name === "general" ? 600 : 400);
-    const threads = history.filter((m) => (m.reply_count ?? 0) > 0).sort((a, b) => b.reply_count - a.reply_count).slice(0, c.name === "general" ? 15 : 8);
+    const threads = history.filter((m) => (m.reply_count ?? 0) > 0).sort((a, b) => b.reply_count - a.reply_count).slice(0, c.name === "general" ? 10 : 4);
     const replies = new Map<string, any[]>();
     await mapLimit(threads, 3, async (m) => {
       const r = await paged("conversations.replies", "messages", { channel: c.id, ts: m.ts, limit: 200 }, 200).catch(() => []);
@@ -107,6 +107,40 @@ export async function pullSlack(era: EraClient, ctx: PullContext, accountSlugs: 
       });
     }
   });
+
+  // mentions of focus accounts in every other channel (#sales, #support, #deal-desk…), via Slack search
+  const pickedIds = new Set(picked.map(({ c }) => c.id));
+  let mentions = 0;
+  await mapLimit(ctx.focus, 4, async (f) => {
+    const r = await api("search.messages", { query: `"${f.name}"`, count: 100, sort: "timestamp", sort_dir: "desc" }).catch(() => null);
+    const matches = (r?.messages?.matches ?? []).filter((m: any) => Number(m.ts) >= oldest && !pickedIds.has(m.channel?.id));
+    const byChannelDay = new Map<string, any[]>();
+    for (const m of matches) {
+      rawMessages.push(rawDoc(`${m.channel?.id}:${m.ts}`, { channel: m.channel?.name, channel_id: m.channel?.id, ...m }));
+      const key = `${m.channel?.id}|${slackTs(m.ts).toISOString().slice(0, 10)}`;
+      byChannelDay.set(key, [...(byChannelDay.get(key) ?? []), m]);
+    }
+    for (const [key, msgs] of byChannelDay) {
+      const [channelId, day] = key.split("|");
+      msgs.sort((a, b) => Number(a.ts) - Number(b.ts));
+      const channel = msgs[0].channel?.name ?? channelId;
+      mentions += msgs.length;
+      docs.push({
+        _id: docId("slack", "mentions", `${channelId}:${day}:${f.id}`),
+        source: "slack",
+        kind: "mentions",
+        sourceId: `${channelId}:${day}`,
+        title: `#${channel} on ${day}: ${f.name}`,
+        text: msgs.map((m) => `${m.username ?? who(m.user)}: ${clean(m.text)}`).join("\n"),
+        url: msgs[0].permalink,
+        ts: slackTs(msgs.at(-1).ts),
+        accountIds: [f.id],
+        personIds: [...new Set(msgs.map((m) => pid(m.user)).filter(Boolean) as string[])],
+        meta: { channel, messages: msgs.length },
+      });
+    }
+  });
+  ctx.log(`   slack: ${mentions} cross-channel mentions of focus accounts`);
 
   const entities: Entity[] = [];
   for (const u of users) {

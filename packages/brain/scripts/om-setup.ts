@@ -9,6 +9,7 @@ import { closeDb, colls } from "../src/brain/store.ts";
 import { importLeaders, registerAtlasCollections, registerEraSources, setupAiAssets, setupMetrics, setupOntology, wireLineage } from "../src/om/catalog.ts";
 import { OM } from "../src/om/client.ts";
 import { ingestAtlasNative } from "../src/om/ingest-atlas.ts";
+import { setupAgentAssets } from "../src/om/agents.ts";
 import { loadOntologyGraph, rdfStatus, refreshReasoners, reindexRdf, waitForProjection } from "../src/om/rdf.ts";
 
 const native = !process.argv.includes("--no-native");
@@ -34,11 +35,13 @@ console.log("⑥ lineage (table + column level)");
 await wireLineage(om, schemaFqn);
 console.log("⑦ owners from Era org chart");
 await importLeaders(om);
+console.log("⑧ Wisteria agents and their shared memory (agent-memory collections, MCP server, AI applications, lineage)");
+await setupAgentAssets(om, schemaFqn).catch((e) => console.log(`  – agent assets skipped: ${String(e).slice(0, 200)}`));
 const rdf = await rdfStatus(om).catch(() => ({ enabled: false }));
 if (rdf.enabled) {
-  console.log("⑧ RDF knowledge graph (Fuseki): Wisteria ontology graph for SPARQL + inference");
+  console.log("⑨ RDF knowledge graph (Fuseki): Wisteria ontology graph for SPARQL + inference");
   if (process.argv.includes("--rdf-reindex")) await reindexRdf(om);
-  else await waitForProjection(om, ["company_brain_agent", `${schemaFqn}.docs`, "era_salesforce.wisteria.salesforce.Contact"]);
+  else await waitForProjection(om, ["company_brain_agent", "wisteria_account_manager_agent", `${schemaFqn}.docs`, "era_salesforce.wisteria.salesforce.Contact"]);
   await loadOntologyGraph(om);
   await refreshReasoners();
 }

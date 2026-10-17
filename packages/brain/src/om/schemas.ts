@@ -56,7 +56,7 @@ export const ERA_OBJECTS: EraObject[] = [
   {
     source: "salesforce", object: "Opportunity", collection: "raw_salesforce_opportunity", concept: "Opportunity", key: "Id",
     description: "Deals with stage, amount and close date. Feeds Pipeline and ARR.",
-    columns: [id("Opportunity id"), c("Name", "STRING"), c("AccountId", "STRING", "Account the deal belongs to"), c("StageName", "STRING", "Sales stage", { term: "Pipeline" }), c("Amount", "DOUBLE", "Deal value (USD)", { term: "ARR" }), c("CloseDate", "DATE"), c("IsClosed", "BOOLEAN"), c("IsWon", "BOOLEAN"), c("Type", "STRING", "New Business | Renewal | Expansion", { term: "Renewal" }), c("Probability", "DOUBLE"), c("OwnerId", "STRING", "Opportunity owner (User)"), c("Description", "TEXT"), c("NextStep", "STRING"), ...audit],
+    columns: [id("Opportunity id"), c("Name", "STRING"), c("AccountId", "STRING", "Account the deal belongs to"), c("StageName", "STRING", "Sales stage", { term: "Pipeline" }), c("Amount", "DOUBLE", "Deal value (USD)", { term: "Pipeline" }), c("CloseDate", "DATE"), c("IsClosed", "BOOLEAN"), c("IsWon", "BOOLEAN"), c("Type", "STRING", "New Business | Renewal | Expansion", { term: "Renewal" }), c("Probability", "DOUBLE"), c("OwnerId", "STRING", "Opportunity owner (User)"), c("Description", "TEXT"), c("NextStep", "STRING"), ...audit],
     fks: [["AccountId", "Account", "Id"], ["OwnerId", "User", "Id"]],
     toDocs: { sourceId: ["Id"], title: ["Name"], text: ["Name", "StageName", "Amount", "CloseDate", "Type", "Probability", "NextStep", "Description"], ts: ["LastModifiedDate", "CloseDate"], accountIds: ["AccountId"], personIds: ["OwnerId"], meta: ["StageName", "Amount", "CloseDate", "IsClosed", "IsWon", "Type", "Probability"] },
   },
@@ -105,9 +105,9 @@ export const ERA_OBJECTS: EraObject[] = [
   {
     source: "zendesk", object: "organizations", collection: "raw_zendesk_organizations", concept: "Organization", key: "id",
     description: "Customer organizations in the help desk, matched to Salesforce accounts by name.",
-    columns: [c("id", "BIGINT"), c("name", "STRING"), c("domain_names", "ARRAY", "", { arrayOf: "STRING" }), c("details", "TEXT"), c("notes", "TEXT"), c("tags", "ARRAY", "", { arrayOf: "STRING" }), c("created_at", "TIMESTAMP"), c("updated_at", "TIMESTAMP")],
+    columns: [c("id", "BIGINT"), c("name", "STRING"), c("domain_names", "ARRAY", "", { arrayOf: "STRING" }), c("details", "TEXT"), c("notes", "TEXT"), c("tags", "ARRAY", "", { arrayOf: "STRING" }), c("organization_fields", "JSON", "Account record: ARR, seats, plan, renewal date, owner, status", { term: "ARR" }), c("created_at", "TIMESTAMP"), c("updated_at", "TIMESTAMP")],
     rawExtra: [c("account", "STRING", "Resolved brain account id")],
-    toEntities: { _id: ["name"], aliases: ["name"] },
+    toEntities: { _id: ["name"], aliases: ["name"], attrs: ["organization_fields", "domain_names"] },
   },
   {
     source: "zendesk", object: "tickets", collection: "raw_zendesk_tickets", concept: "SupportTicket", key: "id",

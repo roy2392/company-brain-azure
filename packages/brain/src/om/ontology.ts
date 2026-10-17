@@ -58,7 +58,7 @@ export const CONCEPTS: Concept[] = [
   { name: "Incident", displayName: "Incident", parent: "Issue", kind: "class", team: "Engineering", domain: "Engineering", description: "A production-impacting Issue, typically highest priority." },
   { name: "Document", displayName: "Document", kind: "class", team: "Product", domain: "Collaboration", description: "Written knowledge: Confluence pages, Google Drive docs, decks and sheets.", mappings: [[`${SCHEMA}DigitalDocument`, "EXACT_MATCH"], [`${FOAF}Document`, "EXACT_MATCH"]] },
   // metrics & signals
-  { name: "ARR", displayName: "Annual Recurring Revenue (ARR)", kind: "metric", team: "Finance", domain: "Sales", description: "Annualized value of recurring business: Closed Won opportunity amounts over the trailing 12 months per Customer. Owned by Finance — the only approved revenue number for customer conversations.", synonyms: ["annual recurring revenue", "recurring revenue"] },
+  { name: "ARR", displayName: "Annual Recurring Revenue (ARR)", kind: "metric", team: "Finance", domain: "Sales", description: "Annualized contract value of a Customer (seats × price) as recorded on the customer account, matching the active Salesforce contract. Owned by Finance — the only approved revenue number for customer conversations. Not the same as closed-won bookings.", synonyms: ["annual recurring revenue", "recurring revenue"] },
   { name: "Pipeline", displayName: "Pipeline", kind: "metric", team: "Sales", domain: "Sales", description: "Sum of open opportunity amounts (not Closed Won / Closed Lost)." },
   { name: "HealthScore", displayName: "Customer Health Score", kind: "metric", team: "CustomerSuccess", domain: "CustomerSuccess", description: "Composite view of a Customer's health from support load, escalations, call sentiment, Slack activity and commercial momentum." },
   { name: "ChurnRisk", displayName: "Churn Risk", kind: "signal", team: "CustomerSuccess", domain: "CustomerSuccess", description: "Brain-derived signal that a Customer may churn — always explained with cited evidence (escalations, negative call moments, stalled renewal, executive silence).", synonyms: ["at risk", "risk"] },
@@ -143,9 +143,15 @@ export interface MetricDef {
 export const METRICS: MetricDef[] = [
   {
     name: "annual_recurring_revenue", displayName: "ARR", term: "ARR", metricType: "SUM", unit: "DOLLARS", granularity: "YEAR", team: "Finance", domain: "Sales", language: "JavaScript",
-    description: "Closed Won opportunity amounts over the trailing 12 months, per customer. Shown on every account card and used by the agent for revenue questions.",
-    code: `db.raw_salesforce_opportunity.aggregate([\n  { $match: { IsWon: true, CloseDate: { $gte: brainNowMinus(365) } } },\n  { $group: { _id: "$AccountId", arr: { $sum: "$Amount" } } }\n])`,
-    from: ["raw_salesforce_opportunity", "raw_salesforce_contract"],
+    description: "Annualized contract value per customer from the account record (Zendesk organization field arr, matching the Salesforce contract). Shown on every account card and used by the agent for revenue questions.",
+    code: `db.raw_zendesk_organizations.aggregate([\n  { $project: { name: 1, arr: "$organization_fields.arr", renewal: "$organization_fields.renewal_date" } }\n])`,
+    from: ["raw_zendesk_organizations", "raw_salesforce_contract"],
+  },
+  {
+    name: "closed_won_12m", displayName: "Closed-won bookings (12 months)", term: "Opportunity", metricType: "SUM", unit: "DOLLARS", granularity: "YEAR", team: "Sales", domain: "Sales", language: "JavaScript",
+    description: "Closed Won opportunity amounts over the trailing 12 months per customer. Bookings, not ARR: renewals, pilots and expansions all count.",
+    code: `db.raw_salesforce_opportunity.aggregate([\n  { $match: { IsWon: true, CloseDate: { $gte: brainNowMinus(365) } } },\n  { $group: { _id: "$AccountId", bookings: { $sum: "$Amount" } } }\n])`,
+    from: ["raw_salesforce_opportunity"],
   },
   {
     name: "open_pipeline", displayName: "Open Pipeline", term: "Pipeline", metricType: "SUM", unit: "DOLLARS", team: "Sales", domain: "Sales", language: "JavaScript",

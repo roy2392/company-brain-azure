@@ -107,7 +107,7 @@ export async function pullSalesforce(era: EraClient, opts: { focusN: number; foc
         owner: owner?.Name,
         website: a.Website,
         employees: a.NumberOfEmployees,
-        arr: wonByAcct.get(a.Id) || undefined,
+        closedWon12m: wonByAcct.get(a.Id) || undefined,
       }, links),
     );
   }

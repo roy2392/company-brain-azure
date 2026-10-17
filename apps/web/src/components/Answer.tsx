@@ -22,7 +22,7 @@ function Inline({ text, ...p }: Props & { text: string }) {
           const id = part.slice(2, -2).trim();
           const c = p.citations.find((x) => x.id === id);
           const src = c?.source ?? sourceOfId(id);
-          const meta = SOURCE_META[src] ?? SOURCE_META.openmetadata;
+          const meta = SOURCE_META[src] ?? { label: "Computed by the brain", short: "Brain", color: "#6E4FA3" };
           const n = p.order.indexOf(id) + 1;
           return (
             <button

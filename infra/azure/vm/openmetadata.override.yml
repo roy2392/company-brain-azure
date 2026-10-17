@@ -1,0 +1,14 @@
+# OpenMetadata on Azure: sign JWTs with the key Terraform generated (not the key shipped in the public image),
+# and encrypt stored secrets with our own Fernet key.
+services:
+  openmetadata-server:
+    environment:
+      RSA_PUBLIC_KEY_FILE_PATH: /opt/openmetadata/conf/keys/public_key.der
+      RSA_PRIVATE_KEY_FILE_PATH: /opt/openmetadata/conf/keys/private_key.der
+      JWT_KEY_ID: ${JWT_KEY_ID}
+      FERNET_KEY: ${FERNET_KEY}
+    volumes:
+      - /opt/brain/secrets/jwt:/opt/openmetadata/conf/keys:ro
+  execute-migrate-all:
+    environment:
+      FERNET_KEY: ${FERNET_KEY}

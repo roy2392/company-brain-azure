@@ -1,0 +1,89 @@
+# The whole stack on the Azure VM (run by infra/azure/vm/bootstrap.sh):
+#   docker compose -f docker-compose.azure.yml up -d
+# Same services as the laptop stack, plus Ollama, the brain (API + web + Foundry gateway) and Caddy (TLS).
+# Only Caddy is reachable from the internet (the NSG opens 80/443/8443); everything else stays on brain_net.
+include:
+  - path:
+      - infra/openmetadata.compose.yml
+      - infra/azure/vm/openmetadata.override.yml
+    env_file: .env
+  - path: infra/agent-memory.compose.yml
+    env_file: .env
+
+services:
+  atlas:
+    container_name: brain_atlas
+    image: mongodb/mongodb-atlas-local:8.3.8
+    restart: unless-stopped
+    hostname: atlas
+    volumes:
+      - atlas-db:/data/db
+      - atlas-config:/data/configdb
+      - atlas-mongot:/data/mongot
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/runner", "healthcheck"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    networks:
+      - brain_net
+
+  # embeddings (nomic-embed-text) for brain search and agent-memory, and the small LLM agent-memory enriches with
+  ollama:
+    container_name: brain_ollama
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    networks:
+      - brain_net
+
+  # the company brain: API + built web app on :8787, Foundry gateway on :8790
+  brain:
+    container_name: brain_app
+    image: node:22-bookworm
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - brain-node-modules:/app/node_modules
+    environment:
+      BRAIN_API_HOST: 0.0.0.0
+      FOUNDRY_GATEWAY_HOST: 0.0.0.0
+    command: ["bash", "-lc", "npm ci --no-audit --no-fund && npm run build && (npx tsx packages/brain/src/gateway.ts & exec npx tsx packages/brain/src/server.ts)"]
+    depends_on:
+      atlas:
+        condition: service_healthy
+      openmetadata-server:
+        condition: service_healthy
+    networks:
+      - brain_net
+
+  caddy:
+    container_name: brain_caddy
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8443:8443"
+    env_file: /opt/brain/env/caddy.env
+    volumes:
+      - ./infra/azure/vm/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - brain_net
+
+volumes:
+  atlas-db:
+  atlas-config:
+  atlas-mongot:
+  ollama:
+  brain-node-modules:
+  caddy-data:
+  caddy-config:
+
+networks:
+  brain_net:
+    name: brain_net

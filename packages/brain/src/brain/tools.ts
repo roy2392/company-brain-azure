@@ -4,6 +4,8 @@ import { GLOSSARY } from "../om/ontology.ts";
 import { findEntities, searchChunks } from "./search.ts";
 import { brainNow, colls } from "./store.ts";
 import { SOURCES, type BrainDoc, type Citation, type Entity, type Source } from "./types.ts";
+import { memoryCitation, tagValue, teamMemory } from "../agents/memory.ts";
+import { AGENT_NAMES } from "../agents/roster.ts";
 
 /**
  * The brain's tool surface. Defined once, exposed twice: as an MCP server (Claude Desktop/Code)
@@ -33,6 +35,7 @@ const LABEL: Record<string, string> = {
   confluence: "Confluence",
   drive: "Google Drive",
   openmetadata: "OpenMetadata",
+  memory: "Team memory",
 };
 
 const day = (d: Date | string) => new Date(d).toISOString().slice(0, 10);
@@ -102,20 +105,37 @@ const account360 = define({
     const open = opps.filter((o) => !o.meta.isClosed);
     const won = opps.filter((o) => o.meta.isWon);
     const sum = (xs: BrainDoc[]) => xs.reduce((a, o) => a + (Number(o.meta.amount) || 0), 0);
-    const tickets = all.filter((d) => d.kind === "ticket" || d.kind === "case");
+    // Era mirrors Zendesk tickets as Salesforce cases: count support once (Zendesk when present)
+    const zdTickets = all.filter((d) => d.kind === "ticket");
+    const tickets = zdTickets.length ? zdTickets : all.filter((d) => d.kind === "case");
     const openTickets = tickets.filter((t) => !/closed|solved|resolved/i.test(String(t.meta.status ?? "")));
-    const escalations = tickets.filter((t) => t.meta.escalated || /urgent|high|critical/i.test(String(t.meta.priority ?? "")));
+    const escalations = tickets.filter((t) => t.ts >= since90 && (t.meta.escalated || /urgent|high|critical/i.test(String(t.meta.priority ?? ""))));
+    const events = all.filter((d) => d.kind === "account-event");
+    const a0 = acct.attrs as Record<string, any>;
+    // what every system recorded around a churn record (±3 days): decisions are often in Slack or the CRM
+    const churnAt = a0.churnedAt ? new Date(a0.churnedAt).getTime() : null;
+    const near = churnAt
+      ? all
+          .filter((d) => Math.abs(d.ts.getTime() - churnAt) <= 3 * DAY && d.kind !== "account-event")
+          // decisions live in conversations, calls and deals more than in tickets
+          .map((d) => ({ d, rank: Math.abs(d.ts.getTime() - churnAt) + (/ticket|case|task/.test(d.kind) ? 2 * DAY : 0) }))
+          .sort((x, y) => x.rank - y.rank)
+          .slice(0, 8)
+          .map((x) => x.d)
+      : [];
+    const nearText = new Map((await docs.find({ _id: { $in: near.map((d) => d._id) } }, { projection: { text: 1 } }).toArray()).map((d) => [d._id, d.text]));
+    const record = all.find((d) => d.kind === "account-record");
     const calls = by("gong", "call").slice(0, 5);
     const issues = all.filter((d) => d.source === "jira").slice(0, 5);
     const people = await entities.find({ "links.to": acct._id, type: "person" }, { projection: { name: 1, attrs: 1, links: 1 } }).limit(25).toArray();
 
-    const highlight = [...open.slice(0, 5), ...escalations.slice(0, 5), ...calls, ...issues, ...all.slice(0, 8)];
-    const citations = [...new Map(highlight.map((d) => [d._id, cite(d)])).values()];
+    const highlight = [...(record ? [record] : []), ...events.slice(0, 3), ...near, ...open.slice(0, 5), ...escalations.slice(0, 5), ...calls, ...issues, ...all.slice(0, 8)];
+    const citations = [...new Map(highlight.map((d) => [d._id, cite(d, nearText.get(d._id))])).values()];
     const fmt$ = (n: number) => (n ? `$${Math.round(n).toLocaleString("en-US")}` : "—");
     const a = acct.attrs as Record<string, any>;
     const data = {
       account: { id: acct._id, name: acct.name, ...a, sources: acct.sources },
-      commercial: { openPipeline: sum(open), openOpportunities: open.length, closedWon: sum(won), arr: a.arr ?? null },
+      commercial: { openPipeline: sum(open), openOpportunities: open.length, closedWon: sum(won), closedWon12m: a.closedWon12m ?? null, arr: a.arr ?? null, renewalDate: a.renewalDate ?? null, seats: a.seats ?? null, churnedAt: a.churnedAt ?? null },
       support: { open: openTickets.length, escalations: escalations.length, last90: tickets.filter((t) => t.ts >= since90).length },
       activity: counts,
       people: people.map((p) => ({ id: p._id, name: p.name, title: p.attrs?.title, rel: p.links?.find((l: any) => l.to === acct._id)?.rel })),
@@ -123,8 +143,9 @@ const account360 = define({
     };
     const text = [
       `${acct.name} (${acct._id}) — ${[a.type, a.industry, a.region].filter(Boolean).join(" · ") || "account"}${a.owner ? ` · owner ${a.owner}` : ""}`,
-      `Commercial: ARR ${fmt$(a.arr)} · open pipeline ${fmt$(data.commercial.openPipeline)} across ${open.length} opps · closed-won ${fmt$(data.commercial.closedWon)}`,
-      `Support: ${openTickets.length} open tickets, ${escalations.length} escalations, ${data.support.last90} tickets in last 90d`,
+      a.churnedAt ? `CHURN RECORDED on ${a.churnedAt} (Zendesk organization audit log). Records from every system within 3 days of it are listed first under Evidence.` : "",
+      `Commercial: ARR ${fmt$(a.arr)} (Zendesk account record${record ? ` [[${record._id}]]` : ""}${a.seats ? `, ${a.seats} seats` : ""}${a.renewalDate ? `, renewal ${a.renewalDate}` : ""}) · open pipeline ${fmt$(data.commercial.openPipeline)} across ${open.length} open opps · closed-won last 12 months ${fmt$(a.closedWon12m)}`,
+      `Support: ${openTickets.length} open tickets, ${escalations.length} urgent/high or escalated in the last 90d, ${data.support.last90} tickets in the last 90d`,
       `Activity last 90d: ${SOURCES.filter((s) => counts[s].last90).map((s) => `${LABEL[s]} ${counts[s].last90}`).join(", ") || "none"}`,
       people.length ? `People: ${people.slice(0, 10).map((p) => `${p.name}${p.attrs?.title ? ` (${p.attrs.title})` : ""}`).join("; ")}` : "",
       a.slackChannels?.length ? `Slack: ${a.slackChannels.map((c: string) => `#${c}`).join(", ")}` : "",
@@ -284,15 +305,39 @@ const getRecord = define({
   description: "Open one cited record in full (ticket thread, call transcript, Slack thread, page, opportunity) by its id, e.g. zendesk:ticket:123.",
   shape: { id: z.string().describe("Record id exactly as cited, without brackets") },
   async run({ id }) {
+    const clean = id.replace(/^\[+|\]+$/g, "");
+    if (clean.startsWith("memory:")) {
+      const m: any = await teamMemory.get(clean);
+      if (!m) return { text: `No memory ${clean}.`, citations: [] };
+      const c = memoryCitation({ ...m, _id: String(m._id) }, AGENT_NAMES);
+      return { text: `[[${c.id}]] ${c.kind} · ${day(c.ts)} · tier ${m.tier} · importance ${Number(m.importance).toFixed(2)} · tags ${m.tags.join(", ")}\n\n${m.content}`, citations: [c], data: m };
+    }
     const { docs } = await colls();
-    const d = await docs.findOne({ _id: id.replace(/^\[+|\]+$/g, "") });
+    const d = await docs.findOne({ _id: clean });
     if (!d) return { text: `No record ${id}.`, citations: [] };
     const c = cite(d, d.text);
     return { text: `[[${d._id}]] ${LABEL[d.source]} ${d.kind} · ${day(d.ts)} · ${d.title}\n${JSON.stringify(d.meta)}\n\n${clip(d.text, 6000)}`, citations: [c], data: d };
   },
 });
 
-export const BRAIN_TOOLS = [searchBrain, account360, relatedEntities, whatChanged, explainData, getRecord] as unknown as BrainTool[];
+const teamMemoryTool = define({
+  name: "team_memory",
+  description: "What Wisteria's agents (Support Lead, Account Manager, RevOps) have learned and saved to their shared memory: agent-memory on MongoDB Atlas. Use for 'what do our agents know about…', prior findings and decisions. Cite as [[memory:<id>]].",
+  shape: { query: z.string().describe("What to recall, e.g. 'Novaris Holdings churn reason'"), limit: z.number().int().min(1).max(15).optional() },
+  async run({ query, limit }) {
+    const hits = await teamMemory.recall(query, limit ?? 8).catch(() => null);
+    if (hits === null) return { text: "Team memory (agent-memory) is not reachable.", citations: [] };
+    if (!hits.length) return { text: "The agents have not saved anything on this yet.", citations: [] };
+    const citations = hits.map((m) => memoryCitation(m, AGENT_NAMES));
+    return {
+      text: `${hits.length} memories from the agents' shared memory (agent-memory · MongoDB Atlas):\n${hits.map((m) => `[[memory:${m._id}]] ${AGENT_NAMES[tagValue(m.tags, "agent") ?? ""] ?? "agent"} · ${day(m.created_at)} · ${m.content}`).join("\n")}`,
+      citations,
+      data: hits,
+    };
+  },
+});
+
+export const BRAIN_TOOLS = [searchBrain, account360, relatedEntities, whatChanged, explainData, getRecord, teamMemoryTool] as unknown as BrainTool[];
 
 export async function runTool(name: string, args: unknown): Promise<ToolResult> {
   const t = BRAIN_TOOLS.find((x) => x.name === name);

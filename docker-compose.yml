@@ -2,8 +2,10 @@
 #   atlas     : MongoDB Atlas Local (mongod + mongot) — same Search / Vector Search engine as Atlas cloud.
 #               Point MONGODB_URI at an Atlas cloud cluster to run the brain there instead.
 #   OpenMetadata 2.0.5 (server + Postgres + Elasticsearch) — the catalog / governance layer.
+#   agent-memory : shared memory for the Wisteria agents, stored in the same Atlas.
 include:
   - infra/openmetadata.compose.yml
+  - infra/agent-memory.compose.yml
 
 services:
   atlas:

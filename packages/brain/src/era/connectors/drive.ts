@@ -5,7 +5,7 @@ import type { EraClient } from "../client.ts";
 import { asDate, htmlToText, mapLimit, rawDoc, since, type PullContext } from "../util.ts";
 
 const MAX_FILES = 3000;
-const MAX_CONTENT = 350;
+const MAX_CONTENT = 200;
 
 /** Drive v3: list files, read text for documents that mention focus accounts or changed recently. */
 export async function pullDrive(era: EraClient, ctx: PullContext): Promise<ConnectorOutput> {

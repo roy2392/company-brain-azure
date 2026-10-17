@@ -51,7 +51,7 @@ export const SOURCE_SYSTEMS: Record<Source, { service: string; displayName: stri
 
 // ---------------------------------------------------------------------------------------------- helpers
 
-const tolerate = async <T>(p: Promise<T>, codes = [400, 409]): Promise<T | null> => {
+export const tolerate = async <T>(p: Promise<T>, codes = [400, 409]): Promise<T | null> => {
   try {
     return await p;
   } catch (e) {
@@ -74,7 +74,7 @@ const piiTableTag = (columns: Array<{ tags: Array<{ tagFQN: string }> }>) => (co
 const PII = { tagFQN: "PII.Sensitive", source: "Classification", labelType: "Automated", state: "Confirmed" };
 const PII_COLUMN = /(^|_)(e-?mail|phone|mobile|address|street|ssn|birth|dob)/i;
 
-async function teamMap(om: OM): Promise<Record<Team, Ref>> {
+export async function teamMap(om: OM): Promise<Record<Team, Ref>> {
   const out = {} as Record<Team, Ref>;
   for (const t of TEAMS) out[t.name] = ref(await om.get(`/teams/name/${t.name}`), "team");
   return out;
@@ -171,7 +171,7 @@ function omType(v: unknown): { dataType: string; arrayDataType?: string } {
   }
 }
 
-function toOmColumn(name: string, t: { dataType: string; arrayDataType?: string }, spec?: ColSpec) {
+export function toOmColumn(name: string, t: { dataType: string; arrayDataType?: string }, spec?: ColSpec) {
   const tags = [...(spec?.pii || PII_COLUMN.test(name) ? [PII] : []), ...(spec?.term ? [termTag(spec.term)] : [])];
   return {
     name,
@@ -259,14 +259,14 @@ export async function registerEraSources(om: OM, log = console.log) {
 
 // ---------------------------------------------------------------------------------------------- Atlas
 
-async function atlasSchemaFqn(om: OM, owners: Ref[]): Promise<string> {
+export async function atlasSchemaFqn(om: OM, owners: Ref[], schema = cfg.mongo.db, description = "The Wisteria company brain database on MongoDB Atlas."): Promise<string> {
   const dbs = await om.get<any>(`/databases?service=${ATLAS_SERVICE}&limit=50`);
   for (const db of dbs.data ?? []) {
     const schemas = await om.get<any>(`/databaseSchemas?database=${encodeURIComponent(db.fullyQualifiedName)}&limit=50`);
-    const s = (schemas.data ?? []).find((x: any) => x.name === cfg.mongo.db);
+    const s = (schemas.data ?? []).find((x: any) => x.name === schema);
     if (s) return s.fullyQualifiedName;
   }
-  return ensureContainer(om, ATLAS_SERVICE, "default", cfg.mongo.db, owners, ["CompanyBrain"], "The Wisteria company brain database on MongoDB Atlas.");
+  return ensureContainer(om, ATLAS_SERVICE, "default", schema, owners, ["CompanyBrain"], description);
 }
 
 function mergeColumnTags(existing: any[], inferred: any[]) {

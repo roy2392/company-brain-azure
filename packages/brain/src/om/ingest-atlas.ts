@@ -9,7 +9,7 @@ const IMAGE = "docker.getcollate.io/openmetadata/ingestion:2.0.5";
 
 /**
  * Run OpenMetadata's native MongoDB connector against Atlas (one-off container on the compose network),
- * so the catalog shows collections/fields exactly as OpenMetadata discovers them.
+ * so the catalog shows collections/fields exactly as OpenMetadata discovers them: the brain database and agent-memory's.
  * Only works for the local Atlas container; for Atlas cloud, set the service connection in the OM UI.
  */
 export async function ingestAtlasNative(om: OM, log = console.log): Promise<boolean> {
@@ -27,7 +27,7 @@ export async function ingestAtlasNative(om: OM, log = console.log): Promise<bool
       serviceConnection: {
         config: { type: "MongoDB", scheme: "mongodb", hostPort: "atlas:27017", connectionOptions: { directConnection: "true" } },
       },
-      sourceConfig: { config: { type: "DatabaseMetadata", schemaFilterPattern: { includes: [`^${cfg.mongo.db}$`] } } },
+      sourceConfig: { config: { type: "DatabaseMetadata", schemaFilterPattern: { includes: [`^${cfg.mongo.db}$`, `^${cfg.memory.db}$`] } } },
     },
     sink: { type: "metadata-rest", config: {} },
     workflowConfig: {
