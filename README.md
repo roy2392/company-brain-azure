@@ -57,7 +57,7 @@ playground**, then their memories, lineage and a new glossary term in **OpenMeta
 |---|---|---|
 | Agents | **Microsoft Foundry** prompt agents, gpt-5.4 | Support Lead, Account Manager, RevOps Analyst, Product Lead |
 | Tools | **Model Context Protocol** over HTTPS, one key per agent | Company-brain tools + team memory; OpenMetadata read tools via each agent's bot |
-| Shared memory | **agent-memory** on **MongoDB Atlas** (M10 on Azure, `$rankFusion`) | Short-term, long-term and episodic memory for all agents |
+| Shared memory | **agent-memory** on **MongoDB Atlas** (cluster on Azure, `$rankFusion`) | Short-term, long-term and episodic memory for all agents |
 | Brain | **MongoDB Atlas** (Atlas Local 8.3 on the VM) | Raw records, docs, entity graph, chunks + embeddings |
 | Governance | **OpenMetadata 2.0.5** (+ Postgres, Elasticsearch, Apache Jena Fuseki) | Glossary and ontology, owners, lineage, PII, AI assets, memories |
 | Observability | **Application Insights** + Log Analytics | Foundry traces: every run and tool call |
@@ -127,8 +127,10 @@ the agents with its managed identity. Application Insights on the Foundry accoun
 
 All agents write to one memory space in [agent-memory](https://github.com/mongodb-partners/agent-memory) (REST + MCP),
 which keeps memories, an episodic log and decisions in MongoDB, recalled with `$rankFusion`. On Azure it can run on its
-own Atlas cluster ([`atlas.tf`](infra/azure/terraform/atlas.tf)): an M10 on Azure in Sweden Central, on the latest MongoDB
-release, reachable only from the VM, browsable in the Atlas UI.
+own Atlas cluster ([`atlas.tf`](infra/azure/terraform/atlas.tf)) on Azure: a free M0 (the demo runs on one in Europe West)
+or an M10 when billing allows, reachable only from the VM and browsable in the Atlas UI. To bill Atlas through an Azure
+subscription, [`atlas_billing.tf`](infra/azure/terraform/atlas_billing.tf) links the organization to the Azure Marketplace
+plan (MongoDB Atlas as an Azure Native ISV service).
 
 ### Governed by OpenMetadata
 
@@ -160,8 +162,8 @@ Claude, GitHub Copilot or any client; and the agents are MCP clients of OpenMeta
 
 ## Costs
 
-While running: the VM (`Standard_D8s_v5`, about US$0.38/hour) and, if enabled, the Atlas M10 cluster (about
-US$0.10/hour) dominate; Foundry tokens and Application Insights are per use. Deallocate the VM between sessions and
+While running: the VM (`Standard_D8s_v5`, about US$0.38/hour) and, with an M10 instead of the free M0, the
+Atlas cluster (about US$0.10/hour) dominate; Foundry tokens and Application Insights are per use. Deallocate the VM between sessions and
 `terraform destroy` when you are done.
 
 ## Repository layout

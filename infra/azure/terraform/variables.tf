@@ -105,3 +105,27 @@ variable "atlas_instance_size" {
   type        = string
   default     = "M10"
 }
+
+variable "atlas_billing" {
+  description = "Who bills the Atlas cluster: \"atlas\" (a payment method in Atlas) or \"azure\" (Azure Marketplace, atlas_billing.tf)."
+  type        = string
+  default     = "atlas"
+}
+
+variable "atlas_billing_location" {
+  description = "Azure region of the MongoDB.Atlas/organizations resource (the service's own list; the cluster region is atlas_region)."
+  type        = string
+  default     = "germanywestcentral"
+}
+
+variable "atlas_org_name" {
+  description = "Name of the Atlas organization atlas_org_id points at (needed to link it to Azure billing)."
+  type        = string
+  default     = ""
+}
+
+variable "atlas_owner" {
+  description = "Owner recorded on the Azure Native Atlas resource."
+  type        = object({ first_name = string, last_name = string, email = string })
+  default     = { first_name = "", last_name = "", email = "" }
+}

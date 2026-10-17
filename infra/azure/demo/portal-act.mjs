@@ -15,6 +15,10 @@ for (const a of actions) {
       page = browser.contexts().flatMap((c) => c.pages())[a.tab];
       await page.bringToFront();
     }
+    if (a.newTab) {
+      page = await page.context().newPage();
+      await page.goto(a.newTab, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    }
     if (a.goto) await page.goto(a.goto, { waitUntil: "domcontentloaded", timeout: 60_000 });
     if (a.click) await page.locator(a.click).first().click({ timeout: 15_000 });
     if (a.fill) await page.locator(a.fill[0]).first().fill(a.fill[1], { timeout: 15_000 });

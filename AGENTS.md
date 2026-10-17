@@ -62,7 +62,8 @@ Azure: see `infra/azure/README.md` (`terraform apply`, `./infra/azure/deploy.sh 
 - OpenMetadata 2.0.5: see `docs/` and the comments in `om/*.ts` (PUT is create-or-update; glossary `iri` needs PATCH;
   teams must be `Group` to own assets; `metrics.cost` and non-UUID `sourceConversation` are rejected; agent execution
   DELETE is a no-op).
-- `$rankFusion` needs MongoDB 8.1+ (Atlas Local 8.3 here); older tiers fall back to app-side RRF.
+- `$rankFusion` needs MongoDB 8.0+ (Atlas Local 8.3 here, M0/M10 on Atlas); without it the brain falls back to app-side RRF
+  (agent-memory has no fallback).
 - agent-memory is built from a pinned commit with hash-checked dependencies (`infra/agent-memory/Dockerfile`).
 - Corporate network clients may block `*.services.ai.azure.com` (and SSH) for non-corporate tenants; the Azure VM is
   unaffected. Operate it with `infra/azure/push.sh` (Run Command) and record with `infra/azure/demo/record-portal.sh` (the portal browser: `infra/azure/vm/portal-up.sh`, you sign in over noVNC; `portal-down.sh` deletes the session).

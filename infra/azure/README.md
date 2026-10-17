@@ -32,7 +32,8 @@ No laptop and no tunnel in the loop: the Foundry agents call the brain and OpenM
 | `vm.tf`, `cloud-init.yaml.tftpl` | Ubuntu 24.04 VM (`Standard_D8s_v5`, 128 GB Premium SSD, system-assigned identity); cloud-init installs Docker and writes the generated settings and secrets to `/opt/brain` |
 | `foundry.tf` | AI Services account (`allowProjectManagement`), project `wisteria-agents`, `gpt-5.4` GlobalStandard deployment, 8 MCP connections (2 per agent), `Cognitive Services User` for the VM identity |
 | `tracing.tf` | Log Analytics workspace, Application Insights, the `AppInsights` connection on the Foundry account (every agent run and MCP tool call shows under the agent's **Traces** tab), Monitoring Metrics Publisher for the Foundry identities |
-| `atlas.tf` | Optional (on when `atlas_org_id` is set): MongoDB Atlas project, an M10 cluster on Azure (`SWEDEN_CENTRAL`, latest release for `$rankFusion`), a database user scoped to `agent_memory`, the VM's IP on the access list |
+| `atlas.tf` | Optional (on when `atlas_org_id` is set): MongoDB Atlas project, a cluster on Azure (`atlas_instance_size`: free `M0`, or `M10`+ on the latest release), a database user scoped to `agent_memory`, the VM's IP on the access list |
+| `atlas_billing.tf` | Optional (`atlas_billing = "azure"`): links the Atlas organization to the Azure Marketplace "Pay as You Go" plan (MongoDB Atlas, Azure Native ISV service), so paid tiers bill to the subscription. Internal or sandbox subscriptions are refused by Marketplace policy |
 | `secrets.tf` | OpenMetadata admin password, web basic-auth password, one gateway key per agent, OpenMetadata JWT signing key and Fernet key |
 | `outputs.tf` | URLs, SSH command, Foundry endpoint; passwords as sensitive outputs |
 
@@ -90,14 +91,17 @@ atlas_client_secret = "<service account client secret>"
 ```
 
 ```bash
-terraform -chdir=infra/azure/terraform apply      # ~10 minutes for the M10
+terraform -chdir=infra/azure/terraform apply      # under a minute for an M0, ~10 minutes for an M10
 ./infra/azure/memory-to-atlas.sh                  # connection string → VM, agent-memory + brain restart, OpenMetadata, reset
 terraform -chdir=infra/azure/terraform output atlas_cluster_url
 ./infra/azure/memory-to-atlas.sh --off            # back to Atlas Local
 ```
 
 OpenMetadata then catalogs the memory under its own service (`wisteria_atlas_memory`), with the same lineage.
-M0 and Flex clusters stay on MongoDB 8.0, and agent-memory needs `$rankFusion` (8.1+), hence the M10.
+Tiers: `atlas_instance_size = "M0"` is free (MongoDB 8.0, which has `$rankFusion`; at most 3 search indexes, so
+`memory-atlas.sh` creates the two memory indexes first and episodic search stays off). Free clusters on Azure exist in
+`EUROPE_WEST`, `EUROPE_NORTH`, `US_EAST_2`, `US_WEST`, `CANADA_CENTRAL`, `ASIA_EAST`, `INDIA_CENTRAL` (`atlas_region`).
+`"M10"` needs billing: a card in Atlas, or `atlas_billing = "azure"` with a subscription that may buy Marketplace offers.
 
 ## Use it
 
