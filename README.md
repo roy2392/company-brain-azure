@@ -39,14 +39,15 @@ employees, 6,000 customers), and runs it on Azure:
 
 ## Demo
 
-<a href="docs/demo/wisteria-portal-demo.mp4"><img src="docs/assets/demo-thumbnail.png" alt="Watch the demo: four Foundry agents, one memory, governed in OpenMetadata" width="100%"></a>
+<a href="https://youtu.be/ZqHK3OrAy4I"><img src="docs/assets/trailer-thumbnail.png" alt="Watch the trailer: Company brain on MongoDB Atlas, AI agents with one memory, governed in OpenMetadata" width="100%"></a>
 
-A 3½-minute trailer cut from a take in the real portals. After a Microsoft × MongoDB opener it shows OpenMetadata 2.0's **Knowledge Graph** ("every
-company already has a brain"), shows the brain scattered across the six Era by Eon systems, introduces the four
-**personas** (the Support Lead, Account Manager, RevOps Analyst and Product Lead agents in **Microsoft Foundry**), then
-gives each capability a beat: every tool call traced, every memory governed, column-level lineage, governed metrics,
+A 3½-minute trailer cut from a take in the real portals. After a Microsoft × MongoDB opener comes OpenMetadata 2.0's **Knowledge Graph** ("every
+company already has a brain"), then the brain scattered across the six Era by Eon systems, then the four
+**personas** (the Support Lead, Account Manager, RevOps Analyst and Product Lead agents in **Microsoft Foundry**), and a
+beat for each capability: every tool call traced, every memory governed, column-level lineage, governed metrics,
 the Data Marketplace, a glossary term an agent proposed and the Ontology Explorer, with the memory itself on a
-**MongoDB Atlas** cluster on Azure. The full take with every caption is the
+**MongoDB Atlas** cluster on Azure. Watch it on [YouTube](https://youtu.be/ZqHK3OrAy4I) or download the
+[mp4](docs/demo/wisteria-portal-demo.mp4); the full take with every caption is the
 [walkthrough](docs/demo/wisteria-portal-walkthrough.mp4) (5½ minutes). Re-record it with
 [`infra/azure/demo/record-portal.sh`](infra/azure/demo/README.md). Music: "Heroic Motif" (made with Suno).
 
