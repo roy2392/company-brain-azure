@@ -22,7 +22,7 @@ async function caption(text, ms = 0) {
     if (!el) {
       el = document.createElement("div");
       el.id = "demo-caption";
-      Object.assign(el.style, { position: "fixed", left: "50%", bottom: "28px", transform: "translateX(-50%)", maxWidth: "1100px", padding: "14px 22px", borderRadius: "14px", background: "rgba(36,27,51,0.92)", color: "#f4f2f8", font: "500 21px/1.35 'Schibsted Grotesk Variable', Arial, sans-serif", zIndex: 99999, boxShadow: "0 8px 30px rgba(0,0,0,0.25)", textAlign: "center", transition: "opacity .3s" });
+      Object.assign(el.style, { position: "fixed", left: "50%", bottom: "28px", transform: "translateX(-50%)", maxWidth: "1100px", padding: "14px 22px", borderRadius: "14px", background: "rgba(36,27,51,0.92)", color: "#f4f2f8", font: "500 21px/1.35 'Schibsted Grotesk Variable', Arial, sans-serif", zIndex: 99999, pointerEvents: "none", boxShadow: "0 8px 30px rgba(0,0,0,0.25)", textAlign: "center", transition: "opacity .3s" });
       document.body.appendChild(el);
     }
     el.style.opacity = t ? "1" : "0";
@@ -44,14 +44,16 @@ async function card(title, subtitle, ms) {
 }
 
 async function pickAgent(name) {
-  await page.getByRole("button", { name: new RegExp(name) }).first().click();
+  await page.getByRole("button", { name: new RegExp(name) }).first().click({ force: true });
   await pause(1200);
 }
 
 /** Click the suggestion that starts with `prefix`, wait for the answer (sped up later), then show it. */
 async function ask(prefix, during) {
   const before = await page.locator(".team-mem").count();
-  await page.locator(".team-suggest button", { hasText: prefix }).first().click();
+  const btn = page.locator(".team-suggest button", { hasText: prefix }).first();
+  await btn.waitFor({ state: "visible", timeout: 30_000 });
+  await btn.click({ force: true }); // the page re-renders every 2.5 s (memory feed), which can keep "stable" checks waiting
   await caption(during);
   await pause(1500);
   const start = now();
@@ -72,6 +74,13 @@ async function readAnswer(ms) {
     await pause(ms / steps);
   }
 }
+
+process.on("unhandledRejection", async (e) => {
+  console.error(e);
+  await page.screenshot({ path: "/out/fail.png" }).catch(() => undefined);
+  await context.close().catch(() => undefined);
+  process.exit(1);
+});
 
 await page.goto(`${BASE}/team`, { waitUntil: "networkidle" });
 await page.locator(".team-agent").first().waitFor();
@@ -109,11 +118,11 @@ await caption("Four agents, one memory: each one builds on the others.", 4500);
 await readAnswer(5000);
 
 // 5. The same memories in OpenMetadata
-await page.getByRole("tab", { name: /In OpenMetadata/ }).click();
+await page.getByRole("tab", { name: /In OpenMetadata/ }).click({ force: true });
 await caption("The same memories in OpenMetadata's Context Center: authored by each agent's bot, owned by its team, linked to the Atlas table.", 6000);
 await page.locator(".team-memory ol").evaluate((el) => el.scrollBy({ top: 600, behavior: "smooth" }));
 await caption("Lineage: the four agents → agent_memory.memories → the Company Brain agent, which can recall what they learned.", 6000);
-await page.getByRole("tab", { name: /Shared memory/ }).click();
+await page.getByRole("tab", { name: /Shared memory/ }).click({ force: true });
 await pause(1500);
 
 // 6. Company context straight from OpenMetadata
