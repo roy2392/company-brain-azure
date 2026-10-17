@@ -21,7 +21,8 @@ Azure (Terraform). Read this before changing anything.
 | `docker-compose.azure.yml` | Azure VM stack (same + Ollama, brain, Caddy) |
 | `infra/azure/terraform/` | everything on Azure (VM, network, Foundry account/project/model/connections, secrets, role) |
 | `infra/azure/vm/` | VM bootstrap, Caddyfile, OpenMetadata override |
-| `infra/azure/deploy.sh` | sync repo → VM, ship data, bootstrap |
+| `infra/azure/deploy.sh` | sync repo → VM, ship data, bootstrap (SSH) |
+| `infra/azure/push.sh` | same without SSH: ship code / run commands through Azure Run Command |
 | `infra/azure/demo/` | demo video recorder (Playwright on the VM) and editor |
 
 ## Commands
@@ -63,4 +64,8 @@ Azure: see `infra/azure/README.md` (`terraform apply`, `./infra/azure/deploy.sh 
   DELETE is a no-op).
 - `$rankFusion` needs MongoDB 8.1+ (Atlas Local 8.3 here); older tiers fall back to app-side RRF.
 - agent-memory is built from a pinned commit with hash-checked dependencies (`infra/agent-memory/Dockerfile`).
-- Corporate network clients may block `*.services.ai.azure.com` for non-corporate tenants; the Azure VM is unaffected.
+- Corporate network clients may block `*.services.ai.azure.com` (and SSH) for non-corporate tenants; the Azure VM is
+  unaffected. Operate it with `infra/azure/push.sh` (Run Command) and record with `infra/azure/demo/record.sh`.
+- Foundry fails a whole response when one MCP tool errors: keep gateway tool failures as text, keep tool inputs
+  lenient (clamp in code, no strict enums/min/max), and only expose OpenMetadata tools that work without its vector
+  search (`OM_MCP_AGENT_TOOLS`).

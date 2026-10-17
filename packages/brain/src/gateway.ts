@@ -15,7 +15,7 @@ import { cfg } from "./config.ts";
 import { agentKey, sameSecret } from "./foundry/keys.ts";
 import { agentToken, promoteMemory } from "./om/agents.ts";
 import { OM } from "./om/client.ts";
-import { OM_MCP_READ_TOOLS } from "./om/mcp.ts";
+import { OM_MCP_AGENT_TOOLS } from "./om/mcp.ts";
 
 const om = await new OM().login().catch(() => null);
 const log = (agent: string, msg: string) => console.log(`${new Date().toISOString().slice(11, 19)} [${agent}] ${msg}`);
@@ -49,7 +49,8 @@ function agentServer(a: WisteriaAgent) {
       return { content: [{ type: "text" as const, text: await run(args) }] };
     } catch (e) {
       log(a.name, `✗ ${name}: ${String(e).slice(0, 200)}`);
-      return { content: [{ type: "text" as const, text: `Error in ${name}: ${String(e)}` }], isError: true };
+      // returned as text, not isError: Foundry fails the whole response on an MCP tool error
+      return { content: [{ type: "text" as const, text: `The ${name} tool failed: ${String(e).slice(0, 300)}. Try another tool or answer with what you have.` }] };
     }
   };
   for (const t of BRAIN_TOOLS.filter((x) => a.tools.includes(x.name))) server.registerTool(t.name, { description: t.description, inputSchema: t.shape }, wrap(t.name, async (args) => (await t.run(args)).text));
@@ -72,9 +73,9 @@ async function proxyOpenMetadata(a: WisteriaAgent, req: IncomingMessage, res: Se
   if (body.length) {
     const msgs = [JSON.parse(body.toString())].flat();
     for (const m of msgs) {
-      if (m?.method === "tools/call" && !OM_MCP_READ_TOOLS.includes(m.params?.name)) {
+      if (m?.method === "tools/call" && !OM_MCP_AGENT_TOOLS.includes(m.params?.name)) {
         log(a.name, `✗ blocked OpenMetadata ${m.params?.name}`);
-        return send(res, 200, { jsonrpc: "2.0", id: m.id, error: { code: -32001, message: `${m.params?.name} is not allowed: the gateway only forwards OpenMetadata's read tools` } });
+        return send(res, 200, { jsonrpc: "2.0", id: m.id, result: { content: [{ type: "text", text: `${m.params?.name} is not available: the gateway only forwards ${OM_MCP_AGENT_TOOLS.join(", ")}.` }] } });
       }
       if (m?.method === "tools/call") log(a.name, `→ openmetadata:${m.params?.name} ${JSON.stringify(m.params?.arguments ?? {}).slice(0, 140)}`);
     }
@@ -87,8 +88,15 @@ async function proxyOpenMetadata(a: WisteriaAgent, req: IncomingMessage, res: Se
   }
   if (body.length) headers["content-length"] = String(body.length);
   const upstream = request(target, { method: req.method, headers }, (up) => {
-    res.writeHead(up.statusCode ?? 502, Object.fromEntries(Object.entries(up.headers).filter(([k]) => !["connection", "transfer-encoding"].includes(k))) as any);
-    up.pipe(res);
+    // buffered (responses are small) so tool errors can be turned into text: Foundry fails the whole response on one
+    const chunks: Buffer[] = [];
+    up.on("data", (c) => chunks.push(c));
+    up.on("end", () => {
+      const text = Buffer.concat(chunks).toString().replace(/"isError"\s*:\s*true/g, '"isError":false');
+      const headers = Object.fromEntries(Object.entries(up.headers).filter(([k]) => !["connection", "transfer-encoding", "content-length"].includes(k))) as any;
+      res.writeHead(up.statusCode ?? 502, { ...headers, "content-length": Buffer.byteLength(text) });
+      res.end(text);
+    });
   });
   upstream.on("error", (e) => (res.headersSent ? res.end() : send(res, 502, { error: String(e) })));
   upstream.end(body);

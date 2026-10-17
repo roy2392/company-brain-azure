@@ -32,12 +32,20 @@ export async function azureToken(resource: string): Promise<string> {
 }
 
 async function foundry<T = any>(method: string, path: string, body?: unknown): Promise<T> {
-  const r = await fetch(`${cfg.foundry.endpoint}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${await azureToken("https://ai.azure.com")}`, "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(300_000),
-  });
+  let r: Response;
+  for (let attempt = 0; ; attempt++) {
+    r = await fetch(`${cfg.foundry.endpoint}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${await azureToken("https://ai.azure.com")}`, "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(300_000),
+    });
+    // token-rate limits: wait as told (or back off) and retry a few times
+    if (r.status !== 429 || attempt >= 5) break;
+    const wait = Math.min(60, Number(r.headers.get("retry-after")) || 5 * 2 ** attempt);
+    await r.text();
+    await new Promise((res) => setTimeout(res, wait * 1000));
+  }
   const text = await r.text();
   if (!r.ok) throw new Error(`Foundry ${method} ${path.replace(/\?.*/, "")} → ${r.status} ${text.slice(0, 500)}`);
   return (text ? JSON.parse(text) : null) as T;

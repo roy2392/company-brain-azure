@@ -61,8 +61,8 @@ const COLOR: Record<string, string> = { support_lead: "#1E7A68", account_manager
 const PROMPTS: Record<string, string[]> = {
   support_lead: ["Novaris Holdings keeps escalating. What is breaking for them, since when, and is it getting worse? Save what the account team needs to know."],
   account_manager: ["Why did Novaris Holdings churn? Start from what the team already knows and fill the gaps."],
-  revops_analyst: ["What should Finance report about Novaris Holdings at quarter close? Use our governed ARR definition.", "Who owns the ARR definition at Wisteria, and which datasets feed it?"],
-  product_lead: ["Based on what the team learned about Novaris Holdings, what should product fix first?", "Which datasets with personal data feed our agents, and who owns them?"],
+  revops_analyst: ["What should Finance report about Novaris Holdings at quarter close? Use our governed ARR definition, and save the figure for the team.", "Who owns the ARR definition at Wisteria, and which datasets feed it?"],
+  product_lead: ["Based on what the team learned about Novaris Holdings, what should product fix first? Save the priority for the team.", "Which datasets with personal data feed our agents, and who owns them?"],
 };
 
 const toolLabel = (t: ToolCall) => {

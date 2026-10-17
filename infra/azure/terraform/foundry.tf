@@ -20,7 +20,7 @@ resource "azapi_resource" "foundry" {
       allowProjectManagement = true
       customSubDomainName    = "aif-${local.name}"
       publicNetworkAccess    = "Enabled"
-      disableLocalAuth       = false
+      disableLocalAuth       = true # Entra ID only (tenant policy enforces it; nothing here uses keys)
     }
   }
 }
@@ -86,7 +86,7 @@ resource "azapi_resource" "connection" {
       category      = "RemoteTool"
       group         = "GenericProtocol"
       target        = each.value.target
-      isSharedToAll = true
+      isSharedToAll = false # the service stores false for RemoteTool connections
       metadata      = {}
     }
   }

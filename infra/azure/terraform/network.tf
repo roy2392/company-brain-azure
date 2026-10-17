@@ -54,6 +54,11 @@ resource "azurerm_public_ip" "vm" {
   sku                 = "Standard"
   domain_name_label   = local.dns_label
   tags                = local.tags
+
+  lifecycle {
+    # tenant policies may add ip_tags after creation; replacing the IP would change the address
+    ignore_changes = [ip_tags]
+  }
 }
 
 resource "azurerm_network_interface" "vm" {

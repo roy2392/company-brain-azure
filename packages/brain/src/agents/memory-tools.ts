@@ -29,9 +29,9 @@ export function memoryTools(a: WisteriaAgent, hooks: MemoryToolHooks): MemoryToo
     {
       name: "recall_team_memory",
       description: "Recall what Wisteria's agents (you and your teammates) already know: hybrid search over the team's shared memory in MongoDB Atlas (agent-memory). Call it before investigating.",
-      shape: { query: z.string().describe("What you need to know, e.g. 'Novaris Holdings escalations root cause'"), limit: z.number().int().min(1).max(15).optional() },
+      shape: { query: z.string().describe("What you need to know, e.g. 'Novaris Holdings escalations root cause'"), limit: z.number().optional().describe("1–15 (default 8)") },
       async run({ query, limit }) {
-        const hits = await teamMemory.recall(query, limit ?? 8);
+        const hits = await teamMemory.recall(query, Math.min(15, Math.max(1, Math.round(limit ?? 8))));
         hooks.onRecall?.(query, hits.map((m) => ({ id: m._id, by: tagValue(m.tags, "agent") ?? "?", content: m.content })));
         if (!hits.length) return "Team memory has nothing on this yet.";
         return hits.map((m) => `[[${memoryId(m._id)}]] ${AGENT_NAMES[tagValue(m.tags, "agent") ?? ""] ?? "unknown agent"} · ${day(m.created_at)} · ${m.content}`).join("\n");
@@ -41,8 +41,8 @@ export function memoryTools(a: WisteriaAgent, hooks: MemoryToolHooks): MemoryToo
       name: "remember",
       description: "Save one durable finding to the team's shared memory so the other agents can reuse it. One self-contained fact per call, with source ids inline.",
       shape: {
-        fact: z.string().min(30).describe("Self-contained fact: account, what, when, how much, with source ids inline, e.g. '(zendesk:ticket:123)'"),
-        question: z.string().describe("The question this fact answers, e.g. 'Why did Novaris Holdings churn?'"),
+        fact: z.string().describe("Self-contained fact (a full sentence or two): account, what, when, how much, with source ids inline, e.g. '(zendesk:ticket:123)'"),
+        question: z.string().optional().describe("The question this fact answers, e.g. 'Why did Novaris Holdings churn?'"),
         topic: z.string().optional().describe("Short topic tag, e.g. escalations, churn-reason, arr-impact"),
         account: z.string().optional().describe("The customer this is about, e.g. 'Novaris Holdings'"),
       },
@@ -50,7 +50,8 @@ export function memoryTools(a: WisteriaAgent, hooks: MemoryToolHooks): MemoryToo
         const name = account ?? hooks.account;
         const acct = name ? await resolveAccount(name) : null;
         const id = await teamMemory.remember(a.name, fact, { runId: hooks.runId, account: acct?._id.replace(/^account:/, ""), topic });
-        await hooks.onRemember?.({ id, fact, question, topic, account: acct?.name ?? name });
+        const q = question?.trim() || `What did the ${a.displayName} learn${acct?.name || name ? ` about ${acct?.name ?? name}` : ""}${topic ? ` (${topic})` : ""}?`;
+        await hooks.onRemember?.({ id, fact, question: q, topic, account: acct?.name ?? name });
         return `Saved to team memory as [[${memoryId(id)}]].`;
       },
     },

@@ -51,7 +51,7 @@ variable "model_version" {
 variable "model_capacity" {
   description = "GlobalStandard capacity in thousands of tokens per minute."
   type        = number
-  default     = 100
+  default     = 250
 }
 
 variable "agents" {

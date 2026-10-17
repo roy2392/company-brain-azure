@@ -56,7 +56,9 @@ chmod 644 "$K/private_key.der" "$K/public_key.der" # read by the OpenMetadata co
 
 log "Caddy basic auth"
 HASH=$(docker run --rm caddy:2 caddy hash-password --plaintext "$WEB_PASSWORD")
-printf 'SITE_HOST=%s\nWEB_USER=%s\nWEB_PASSWORD_HASH=%s\n' "$SITE_HOST" "$WEB_USER" "$HASH" > /opt/brain/env/caddy.env
+[ -f /opt/brain/env/share.token ] || (umask 077; openssl rand -hex 24 > /opt/brain/env/share.token)
+mkdir -p /opt/brain/data/share
+printf 'SITE_HOST=%s\nWEB_USER=%s\nWEB_PASSWORD_HASH=%s\nSHARE_TOKEN=%s\n' "$SITE_HOST" "$WEB_USER" "$HASH" "$(cat /opt/brain/env/share.token)" > /opt/brain/env/caddy.env
 chmod 600 /opt/brain/env/caddy.env
 
 C="docker compose -f docker-compose.azure.yml"

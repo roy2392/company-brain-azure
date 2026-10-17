@@ -8,6 +8,9 @@ export const BRAIN_BOT = "company-brain-bot";
 
 /** Tools the brain agent may call (read-only), and the ones it must never call. */
 export const OM_MCP_READ_TOOLS = ["search_metadata", "semantic_search", "get_entity_details", "get_entity_lineage", "find_context", "company_context", "get_user_context"];
+/** What the Foundry agents get through the gateway: read tools that work without OpenMetadata's vector search
+ *  (semantic_search, find_context and company_context fail unless embeddings are configured in OpenMetadata). */
+export const OM_MCP_AGENT_TOOLS = ["search_metadata", "get_entity_details", "get_entity_lineage"];
 export const OM_MCP_WRITE_TOOLS = ["create_entity", "patch_entity", "create_lineage", "create_test_case", "root_cause_analysis", "get_test_definitions", "describe_entity_type", "get_persona_context"];
 
 /** Create (once) a bot user with the given roles and return its non-expiring JWT. */

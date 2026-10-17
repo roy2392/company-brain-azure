@@ -70,6 +70,7 @@ services:
     env_file: /opt/brain/env/caddy.env
     volumes:
       - ./infra/azure/vm/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/brain/data/share:/srv/share:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:

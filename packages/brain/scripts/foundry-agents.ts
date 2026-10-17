@@ -18,7 +18,7 @@ import { azureToken, deleteAgent, foundryAgentName, upsertAgent } from "../src/f
 import { agentKey } from "../src/foundry/keys.ts";
 import { agentToken } from "../src/om/agents.ts";
 import { OM } from "../src/om/client.ts";
-import { OM_MCP_READ_TOOLS } from "../src/om/mcp.ts";
+import { OM_MCP_AGENT_TOOLS } from "../src/om/mcp.ts";
 
 const f = cfg.foundry;
 const agentsOnly = process.argv.includes("--agents-only");
@@ -97,13 +97,13 @@ for (const a of AGENTS) {
       instructions: await instructions(a),
       tools: [
         { type: "mcp", server_label: "wisteria_brain", server_url: brainUrl, require_approval: "never", project_connection_id: brainConn },
-        { type: "mcp", server_label: "openmetadata", server_url: omUrl, require_approval: "never", allowed_tools: OM_MCP_READ_TOOLS, project_connection_id: omConn },
+        { type: "mcp", server_label: "openmetadata", server_url: omUrl, require_approval: "never", allowed_tools: OM_MCP_AGENT_TOOLS, project_connection_id: omConn },
       ],
     },
     description: `${a.displayName} (${a.team}). Shares one memory with the other Wisteria agents through agent-memory on MongoDB Atlas; governed in OpenMetadata.`,
     metadata: { team: a.team, showcase: "wisteria-company-brain" },
   });
-  console.log(`✓ ${foundryAgentName(a)} v${v?.version ?? "?"} · ${f.model} · tools: wisteria_brain (${a.tools.length} brain + 3 memory), openmetadata (${OM_MCP_READ_TOOLS.length} read tools)`);
+  console.log(`✓ ${foundryAgentName(a)} v${v?.version ?? "?"} · ${f.model} · tools: wisteria_brain (${a.tools.length} brain + 3 memory), openmetadata (${OM_MCP_AGENT_TOOLS.join(", ")})`);
 }
-if (!process.argv.includes("--delete")) console.log(`\nOpen the Foundry portal → project ${f.project} → Agents, pick a wisteria-* agent and chat in the playground. Keep npm run gateway and the dev tunnel running.`);
+if (!process.argv.includes("--delete")) console.log(`\nFoundry project ${f.project}: chat with the wisteria-* agents in the playground or at ${cfg.gateway.publicUrl}/team (the gateway must be reachable at ${cfg.gateway.publicUrl}).`);
 await closeDb();

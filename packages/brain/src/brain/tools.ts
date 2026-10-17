@@ -39,6 +39,8 @@ const LABEL: Record<string, string> = {
 };
 
 const day = (d: Date | string) => new Date(d).toISOString().slice(0, 10);
+/** Tool inputs are lenient (agents sometimes pass 25 or "jira "): clamp here instead of failing validation. */
+const clamp = (v: number | undefined, lo: number, hi: number, d: number) => (v === undefined || !Number.isFinite(v) ? d : Math.min(hi, Math.max(lo, Math.round(v))));
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trimEnd()}…` : s);
 
 export function cite(d: Pick<BrainDoc, "_id" | "source" | "kind" | "title" | "url" | "ts">, snippet?: string): Citation {
@@ -66,15 +68,16 @@ const searchBrain = define({
   shape: {
     query: z.string().describe("What to look for, in natural language"),
     account: z.string().optional().describe("Restrict to one customer account (name or account id)"),
-    sources: z.array(z.enum(SOURCES)).optional().describe("Restrict to these systems"),
-    since_days: z.number().int().positive().optional().describe("Only content from the last N days"),
-    limit: z.number().int().min(1).max(20).optional(),
+    sources: z.array(z.string()).optional().describe(`Restrict to these systems: ${SOURCES.join(", ")}`),
+    since_days: z.number().optional().describe("Only content from the last N days"),
+    limit: z.number().optional().describe("Passages to return, 1–20 (default 8)"),
   },
-  async run({ query, account, sources, since_days, limit }) {
+  async run({ query, account, sources: requested, since_days, limit }) {
+    const sources = requested?.map((x) => x.trim().toLowerCase()).filter((x): x is Source => (SOURCES as readonly string[]).includes(x));
     const acct = account ? await resolveAccount(account) : null;
     if (account && !acct) return notFound(account);
-    const since = since_days ? new Date((await brainNow()).getTime() - since_days * DAY) : undefined;
-    const { hits, mode } = await searchChunks({ query, accountIds: acct ? [acct._id] : undefined, sources: sources as Source[] | undefined, since, limit: limit ?? 8 });
+    const since = since_days && since_days > 0 ? new Date((await brainNow()).getTime() - since_days * DAY) : undefined;
+    const { hits, mode } = await searchChunks({ query, accountIds: acct ? [acct._id] : undefined, sources: sources?.length ? sources : undefined, since, limit: clamp(limit, 1, 20, 8) });
     const seen = new Set<string>();
     const citations = hits.filter((h) => !seen.has(h.docId) && seen.add(h.docId)).map((h) => cite({ ...h, _id: h.docId }, h.text));
     const scope = [acct && `account ${acct.name}`, sources?.length && sources.join("/"), since_days && `last ${since_days}d`].filter(Boolean).join(", ");
@@ -162,7 +165,7 @@ const relatedEntities = define({
   description: "Walk the company graph ($graphLookup) around an account, person or product: contacts, owners, products used, linked accounts.",
   shape: {
     entity: z.string().describe("Entity id (account:…, person:…, product:…) or an account name"),
-    depth: z.number().int().min(1).max(3).optional(),
+    depth: z.number().optional().describe("Graph hops, 1–3 (default 1)"),
   },
   async run({ entity, depth }) {
     const { entities } = await colls();
@@ -171,7 +174,7 @@ const relatedEntities = define({
     const [g] = await entities
       .aggregate([
         { $match: { _id: start._id } },
-        { $graphLookup: { from: "entities", startWith: "$links.to", connectFromField: "links.to", connectToField: "_id", as: "out", maxDepth: (depth ?? 1) - 1, depthField: "hop" } },
+        { $graphLookup: { from: "entities", startWith: "$links.to", connectFromField: "links.to", connectToField: "_id", as: "out", maxDepth: clamp(depth, 1, 3, 1) - 1, depthField: "hop" } },
         { $lookup: { from: "entities", localField: "_id", foreignField: "links.to", as: "in", pipeline: [{ $project: { name: 1, type: 1, attrs: 1, links: 1 } }, { $limit: 50 }] } },
         { $project: { "out.links": 0 } },
       ])
@@ -196,10 +199,10 @@ const whatChanged = define({
     "What changed in the last N days (default 91 = one quarter) versus the period before — across every system, for one account or the whole company. Highlights deals that moved, new escalations, calls and the accounts with the biggest activity swings.",
   shape: {
     account: z.string().optional().describe("Account name or id; omit for company-wide"),
-    days: z.number().int().min(7).max(365).optional(),
+    days: z.number().optional().describe("Window in days, 7–365 (default 91)"),
   },
   async run({ account, days }) {
-    const n = days ?? 91;
+    const n = clamp(days, 7, 365, 91);
     const acct = account ? await resolveAccount(account) : null;
     if (account && !acct) return notFound(account);
     const { docs } = await colls();
@@ -323,9 +326,9 @@ const getRecord = define({
 const teamMemoryTool = define({
   name: "team_memory",
   description: "What Wisteria's agents (Support Lead, Account Manager, RevOps) have learned and saved to their shared memory: agent-memory on MongoDB Atlas. Use for 'what do our agents know about…', prior findings and decisions. Cite as [[memory:<id>]].",
-  shape: { query: z.string().describe("What to recall, e.g. 'Novaris Holdings churn reason'"), limit: z.number().int().min(1).max(15).optional() },
+  shape: { query: z.string().describe("What to recall, e.g. 'Novaris Holdings churn reason'"), limit: z.number().optional().describe("1–15 (default 8)") },
   async run({ query, limit }) {
-    const hits = await teamMemory.recall(query, limit ?? 8).catch(() => null);
+    const hits = await teamMemory.recall(query, clamp(limit, 1, 15, 8)).catch(() => null);
     if (hits === null) return { text: "Team memory (agent-memory) is not reachable.", citations: [] };
     if (!hits.length) return { text: "The agents have not saved anything on this yet.", citations: [] };
     const citations = hits.map((m) => memoryCitation(m, AGENT_NAMES));

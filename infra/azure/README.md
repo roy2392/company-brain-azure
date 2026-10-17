@@ -63,7 +63,17 @@ a `mongodump` of `wisteria_brain` the first time, then runs `infra/azure/vm/boot
    collections, metrics, AI assets, lineage, the agents' bots), restarts Fuseki and the brain,
 6. creates or updates the four Foundry agents, and checks the public endpoints.
 
-Re-run `./infra/azure/deploy.sh` after code changes; every step is idempotent.
+Re-run `./infra/azure/deploy.sh` after code changes; every step is idempotent. The bootstrap runs detached on the VM
+(`nohup`, log in `/opt/brain/data/bootstrap.log`), so a dropped connection does not stop it.
+
+**No SSH from your network?** (Some corporate clients route port 22 through their own egress.) Use Azure Run Command,
+which goes through the management API:
+
+```bash
+./infra/azure/push.sh                                  # ship the code (git-tracked + new files) through Run Command
+./infra/azure/push.sh "docker restart brain_app"       # ship, then run a command on the VM
+./infra/azure/push.sh --exec "docker logs --tail 50 brain_app"
+```
 
 ## Use it
 
@@ -86,6 +96,7 @@ terraform -chdir=infra/azure/terraform output -raw openmetadata_admin_password  
 
 ```bash
 ./infra/azure/demo/record.sh     # resets the team memory, records, speeds up the waits → docs/demo/wisteria-agents-demo.mp4
+                                 # (Run Command + a one-off download link; no SSH, no password typed)
 ```
 
 See `demo/README.md` for the storyline.
@@ -124,7 +135,10 @@ Cost while running: the VM (`D8s_v5`, ~US$0.38/h) dominates; model tokens are pe
 
 | Symptom | Cause / fix |
 |---|---|
-| `deploy.sh` cannot SSH | Your egress IP changed: update `ssh_allowed_cidrs`, `terraform apply`. |
+| `deploy.sh` cannot SSH | Your egress IP changed (update `ssh_allowed_cidrs`, `terraform apply`), or your network routes SSH through another egress: use `push.sh`. |
+| A Foundry turn fails with `tool_user_error` or 400 | Foundry fails the whole response on one MCP tool error. The gateway returns tool failures as text and the brain tools accept lenient inputs; OpenMetadata tools that need its vector search (`semantic_search`, `find_context`, `company_context`) are not given to the agents. |
+| 429 rate limit | Raise `model_capacity` (thousands of tokens per minute) and `terraform apply`; the app retries 429s with backoff. |
+| `terraform plan` wants to replace the public IP or flip `disableLocalAuth` | Tenant policies add IP tags and enforce Entra-only auth; both are already reflected (`ignore_changes`, `disableLocalAuth = true`). |
 | Caddy has no certificate | Port 80 must be reachable for Let's Encrypt; check `docker logs brain_caddy`. |
 | Agents answer "tool failed" | `docker logs brain_app` shows each gateway call; a 401 means the key in the Foundry connection and `FOUNDRY_AGENT_KEYS` differ (re-apply Terraform, re-run deploy). |
 | Elasticsearch restarts | `vm.max_map_count` must be 262144 (cloud-init sets it; `sysctl vm.max_map_count`). |

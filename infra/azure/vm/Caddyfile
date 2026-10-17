@@ -10,6 +10,13 @@
 		}
 	}
 
+	# One-off downloads (e.g. the demo video): a random capability path, no login. Empty unless something is copied
+	# into /opt/brain/data/share; the token lives in /opt/brain/env/share.token.
+	handle_path /share/{$SHARE_TOKEN}/* {
+		root * /srv/share
+		file_server
+	}
+
 	# The web app and its API (/team) for people.
 	handle {
 		basic_auth {
