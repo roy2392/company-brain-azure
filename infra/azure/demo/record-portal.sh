@@ -32,7 +32,7 @@ $RESET
 mkdir -p /opt/brain/data/demo /opt/brain/data/share && rm -f /opt/brain/data/demo/portal-* /opt/brain/data/demo/failed-*
 docker exec -u root brain_portal_browser bash -c 'command -v xdotool >/dev/null || (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends xdotool >/dev/null)'
 docker exec -e AZURE_SUBSCRIPTION_ID=$SUB -e AZURE_RESOURCE_GROUP=$RG -e FOUNDRY_ACCOUNT=$ACCOUNT -e FOUNDRY_PROJECT=$PROJECT \\
-  -e OM_URL=https://$FQDN:8443 -e SCENES=${SCENES:-foundry,om} -e DRY=${DRY:-} \\
+  -e OM_URL=https://$FQDN:8443 -e SCENES=${SCENES:-foundry,traces,om} -e DRY=${DRY:-} \\
   brain_portal_browser sh -c 'cp /demo/portal-record.mjs /app/ && cd /app && node portal-record.mjs' 2>&1 | tail -40 || true
 cp /opt/brain/data/demo/portal-* /opt/brain/data/demo/failed-* /opt/brain/data/share/ 2>/dev/null || true
 ls -lh /opt/brain/data/share | tail -n +2

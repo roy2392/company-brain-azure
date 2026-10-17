@@ -330,7 +330,7 @@ async function openMetadata(om) {
   await om.goto(`${OM}/table/${encodeURIComponent(cat.table)}/lineage`, { waitUntil: "domcontentloaded" });
   await om.locator("text=Company Brain agent").first().waitFor({ timeout: 60_000 });
   await sleep(2500);
-  await caption(om, "Lineage: who writes the memory, who reads it", "Four Foundry agents write agent_memory.memories on MongoDB Atlas; the Company Brain agent reads it. Governance can see the whole flow.", "br");
+  await caption(om, "Lineage: who writes the memory, who reads it", "Four Foundry agents write agent_memory.memories, a collection on the MongoDB Atlas cluster on Azure (see the breadcrumb); the Company Brain agent reads it.", "br");
   for (const n of ["Support Lead agent", "Account Manager agent", "RevOps agent", "Product Lead agent", "Company Brain agent"]) {
     const node = om.locator(`.react-flow__node:has-text("${n}")`).first();
     if (await node.isVisible().catch(() => false)) {

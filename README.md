@@ -41,8 +41,9 @@ employees, 6,000 customers), and runs it on Azure:
 
 <a href="docs/demo/wisteria-portal-demo.mp4"><img src="docs/assets/demo-thumbnail.png" alt="Watch the demo: four Foundry agents, one memory, governed in OpenMetadata" width="100%"></a>
 
-Recorded in the real portals (3½ minutes, agents' thinking time sped up): the four agents in the **Microsoft Foundry
-playground**, then their memories, lineage and a new glossary term in **OpenMetadata**. Re-record it with
+Recorded in the real portals (4½ minutes, agents' thinking time sped up): the four agents in the **Microsoft Foundry
+playground**, one run's **trace** tool call by tool call, then their memories, lineage and a new glossary term in
+**OpenMetadata**, with the memory itself on a **MongoDB Atlas** cluster on Azure. Re-record it with
 [`infra/azure/demo/record-portal.sh`](infra/azure/demo/README.md).
 
 | Foundry: the agent names a pattern | Foundry tracing: every tool call | OpenMetadata: the proposed term |
