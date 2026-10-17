@@ -13,3 +13,7 @@ infra/azure/terraform/*.tfstate.*
 infra/azure/terraform/*.tfvars
 !infra/azure/terraform/terraform.tfvars.example
 infra/azure/terraform/*.tfplan
+
+# demo test takes and failure screenshots (infra/azure/demo/record-portal.sh)
+docs/demo/test*.mp4
+docs/demo/failed-*.png

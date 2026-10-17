@@ -66,6 +66,11 @@ Azure: see `infra/azure/README.md` (`terraform apply`, `./infra/azure/deploy.sh 
 - agent-memory is built from a pinned commit with hash-checked dependencies (`infra/agent-memory/Dockerfile`).
 - Corporate network clients may block `*.services.ai.azure.com` (and SSH) for non-corporate tenants; the Azure VM is
   unaffected. Operate it with `infra/azure/push.sh` (Run Command) and record with `infra/azure/demo/record-portal.sh` (the portal browser: `infra/azure/vm/portal-up.sh`, you sign in over noVNC; `portal-down.sh` deletes the session).
+- Tracing: Application Insights is connected to the Foundry account (`terraform/tracing.tf`); runs appear in each agent's
+  Traces tab a minute or two after they end.
+- Agent memory can live on its own Atlas cluster (`terraform/atlas.tf`, `infra/azure/memory-to-atlas.sh`):
+  `AGENT_MEMORY_MONGODB_URI` switches agent-memory, the brain's `memoryDb()` and OpenMetadata's memory service together.
+  OpenMetadata stores a description's backticks as `&#96;` (match both when searching descriptions).
 - Foundry fails a whole response when one MCP tool errors: keep gateway tool failures as text, keep tool inputs
   lenient (clamp in code, no strict enums/min/max), and only expose OpenMetadata tools that work without its vector
   search (`OM_MCP_AGENT_TOOLS`).

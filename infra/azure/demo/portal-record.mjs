@@ -14,7 +14,9 @@ const OM = env.OM_URL;
 const BRAIN = env.BRAIN_URL ?? "http://brain:8787";
 const MODEL = env.MODEL ?? "gpt-5.4";
 const OUT = env.OUT ?? "/out";
-const SCENES = new Set((env.SCENES ?? "foundry,om").split(","));
+const SCENES = new Set((env.SCENES ?? "foundry,traces,om").split(","));
+// whose trace the traces scene opens: the one that recalls first, then remembers (and may propose a concept)
+const TRACE_AGENT = env.TRACE_AGENT ?? "wisteria-account-manager";
 // the portal addresses a project by the subscription id's 16 bytes in base64url
 const subKey = Buffer.from(env.AZURE_SUBSCRIPTION_ID.replace(/-/g, ""), "hex").toString("base64url");
 const AGENTS_URL = `https://ai.azure.com/nextgen/r/${subKey},${env.AZURE_RESOURCE_GROUP},,${env.FOUNDRY_ACCOUNT},${env.FOUNDRY_PROJECT}/build/agents`;
@@ -233,6 +235,59 @@ async function readAnswer(page) {
   await sleep(3500);
 }
 
+// ---------- Foundry traces (Application Insights on the project, see terraform/tracing.tf) ----------
+const traceCount = (page) => page.evaluate(() => Number((document.body.innerText.match(/\d+-\d+ of (\d+)/) || [])[1] ?? 0));
+async function openTraces(page, agent, show = true) {
+  const link = await openAgent(page, agent);
+  if (show) await click(page, link, { dx: 0.3 });
+  else await link.click();
+  await page.locator('[role=tab]:has-text("Traces")').first().waitFor({ timeout: 60_000 });
+  if (show) await click(page, page.locator('[role=tab]:has-text("Traces")').first());
+  else await page.locator('[role=tab]:has-text("Traces")').first().click();
+  await page.locator("text=Trace ID").first().waitFor({ timeout: 60_000 });
+  await sleep(1500);
+}
+async function traces(page, agent, baseline) {
+  log("traces", agent);
+  await openTraces(page, agent);
+  const title = "Foundry tracing: every tool call";
+  const text = "Application Insights is connected to the Foundry project (in Terraform), so every run is traced: each MCP tool call with its arguments and result.";
+  await caption(page, title, text);
+  // a run reaches Application Insights a minute or two after it ends
+  const start = now();
+  for (let i = 0; i < 20 && (await traceCount(page)) <= baseline; i++) {
+    await caption(page, title, `${text}  (waiting for the newest run, sped up)`);
+    await sleep(10_000);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.locator("text=Trace ID").first().waitFor({ timeout: 60_000 });
+    await sleep(1000);
+  }
+  if (now() - start > 5000) marks.push({ start, end: now() });
+  await caption(page, title, text);
+  await sleep(1500);
+  await click(page, page.locator("button").filter({ hasText: /^[0-9a-f]{32}$/ }).first(), { dx: 0.3 });
+  await page.locator("text=Trajectories").first().waitFor({ timeout: 60_000 });
+  await sleep(2500);
+  await caption(page, "One run, step by step", "The agent recalled the team's memory first, called the company-brain tools for the gaps, then saved what it learned with remember. Click any step for its input and output.");
+  const steps = page.locator("text=/execute_tool mcp_/").filter({ visible: true });
+  const n = await steps.count();
+  for (let i = 0; i < Math.min(n, 7); i++) {
+    await pointAt(page, steps.nth(i), { dx: 0.4, ms: 450 });
+    await sleep(500);
+  }
+  const remember = page.locator("text=/execute_tool mcp_wisteria_brain\\.remember/").filter({ visible: true });
+  if (await remember.count()) {
+    await click(page, remember.last(), { dx: 0.4 });
+    await sleep(1200);
+    await caption(page, "remember: what the agent saved", "The fact, the question it answers, the account and the ontology concepts, plus a new concept when the glossary lacks one. agent-memory stores it on MongoDB Atlas; the gateway mirrors it to OpenMetadata.");
+    await pointAtXY(page, 1490, 420, 700);
+    await sleep(7000);
+  }
+  await click(page, page.locator('[role=tab]:has-text("Graph view")').first());
+  await caption(page, "The same run as a graph", "One agent invocation fanning out into its tool calls and the model call.");
+  await sleep(4500);
+}
+
 // ---------- OpenMetadata ----------
 async function catalog() {
   return (await fetch(`${BRAIN}/api/team/catalog`)).json();
@@ -326,6 +381,14 @@ if (!om) throw new Error(`no OpenMetadata tab (${OM}) open in the portal browser
 // leave pages without "unsaved changes?" prompts blocking navigation
 for (const p of [foundry, om]) p.on("dialog", (d) => d.accept().catch(() => undefined));
 
+// pre-roll, off camera: how many traces the trace agent has before this take
+let traceBaseline = 0;
+if (SCENES.has("traces")) {
+  await openTraces(foundry, TRACE_AGENT, false);
+  traceBaseline = SCENES.has("foundry") ? await traceCount(foundry) : -1;
+  log("traces before the take:", traceBaseline);
+}
+
 let ff;
 if (!env.DRY) {
   ff = spawn("ffmpeg", ["-y", "-loglevel", "error", "-f", "x11grab", "-draw_mouse", "1", "-framerate", "25", "-video_size", "1920x1080", "-i", ":99", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", `${OUT}/portal-raw.mp4`], { stdio: ["pipe", "inherit", "inherit"] });
@@ -339,6 +402,10 @@ try {
     await foundry.locator(`a:has-text("${CHATS[0].agent}")`).first().waitFor({ timeout: 60_000 });
     await card(foundry, "Wisteria's company brain, on Azure", "Role agents in Microsoft Foundry share one memory — agent-memory on MongoDB Atlas — and work from governed company context in OpenMetadata.", ["Microsoft Foundry · gpt-5.4", "MongoDB Atlas · agent-memory", "OpenMetadata 2.0.5", "Terraform"], 6000);
     for (const [i, c] of CHATS.entries()) await chat(foundry, c, i);
+  }
+  if (SCENES.has("traces")) {
+    await foundry.bringToFront();
+    await traces(foundry, TRACE_AGENT, traceBaseline);
   }
   if (SCENES.has("om")) await openMetadata(om);
   await card(om, "One memory, governed", "Foundry agents remember in MongoDB Atlas; OpenMetadata shows who wrote what, where it lives, who may read it, and grows the shared vocabulary.", ["Shared team memory", "Governed context over MCP", "An ontology that grows", "All in Terraform"], 6000);

@@ -3,10 +3,11 @@
  *   npm run om:setup                 # everything
  *   npm run om:setup -- --no-native  # skip the dockerized OpenMetadata MongoDB connector run
  *   npm run om:setup -- --rdf-reindex  # also re-project the whole catalog into RDF (after enabling RDF)
+ *   npm run om:setup -- --agents-only  # only ⑧: the agents and their memory (e.g. after moving it to Atlas)
  * Works before ingestion (schemas from the vendor APIs) and refines columns from real records after it.
  */
 import { closeDb, colls } from "../src/brain/store.ts";
-import { importLeaders, registerAtlasCollections, registerEraSources, setupAiAssets, setupMetrics, setupOntology, wireLineage } from "../src/om/catalog.ts";
+import { atlasSchemaFqn, importLeaders, registerAtlasCollections, registerEraSources, setupAiAssets, setupMetrics, setupOntology, teamMap, wireLineage } from "../src/om/catalog.ts";
 import { OM } from "../src/om/client.ts";
 import { ingestAtlasNative } from "../src/om/ingest-atlas.ts";
 import { setupAgentAssets } from "../src/om/agents.ts";
@@ -17,6 +18,14 @@ const om = await new OM().login();
 const t0 = Date.now();
 const { meta } = await colls();
 const hasData = (await meta.countDocuments({ kind: "rawCollection" })) > 0;
+
+if (process.argv.includes("--agents-only")) {
+  console.log("⑧ Wisteria agents and their shared memory (agent-memory collections, MCP server, AI applications, lineage)");
+  await setupAgentAssets(om, await atlasSchemaFqn(om, [(await teamMap(om)).DataPlatform]));
+  console.log(`done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  await closeDb();
+  process.exit(0);
+}
 
 console.log("① ontology: domains, teams, relation types, concepts, statements, data product");
 await setupOntology(om);

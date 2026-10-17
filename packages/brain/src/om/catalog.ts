@@ -259,6 +259,31 @@ export async function registerEraSources(om: OM, log = console.log) {
 
 // ---------------------------------------------------------------------------------------------- Atlas
 
+/** Where OpenMetadata catalogs agent-memory's collections: its own Atlas cluster's service, or the brain's. */
+export const MEMORY_SERVICE = cfg.memory.uri ? "wisteria_atlas_memory" : ATLAS_SERVICE;
+export const memoryTableFqn = (name: string) => `${MEMORY_SERVICE}.default.${cfg.memory.db}.${name}`;
+const memoryClusterHost = () => {
+  try {
+    return new URL(cfg.memory.uri).host;
+  } catch {
+    return "";
+  }
+};
+
+export async function memorySchemaFqn(om: OM, owners: Ref[]): Promise<string> {
+  if (!cfg.memory.uri) return atlasSchemaFqn(om, owners, cfg.memory.db, "agent-memory (github.com/mongodb-partners/agent-memory): the shared memory of Wisteria's agents, in the same MongoDB Atlas as the brain.");
+  await om.put("/services/databaseServices", {
+    name: MEMORY_SERVICE,
+    displayName: "MongoDB Atlas · agent memory",
+    serviceType: "MongoDB",
+    description: `The Wisteria agents' shared memory on a MongoDB Atlas cluster on Azure (\`${memoryClusterHost()}\`), managed by Terraform: agent-memory's short-term, long-term and episodic tiers with Atlas Vector Search + Atlas Search, fused with $rankFusion.`,
+    connection: { config: { type: "MongoDB", scheme: "mongodb+srv", hostPort: memoryClusterHost() } },
+    owners,
+    domains: ["CompanyBrain"],
+  });
+  return ensureContainer(om, MEMORY_SERVICE, "default", cfg.memory.db, owners, ["CompanyBrain"], "agent-memory (github.com/mongodb-partners/agent-memory): the shared memory of Wisteria's agents, on its own MongoDB Atlas cluster.");
+}
+
 export async function atlasSchemaFqn(om: OM, owners: Ref[], schema = cfg.mongo.db, description = "The Wisteria company brain database on MongoDB Atlas."): Promise<string> {
   const dbs = await om.get<any>(`/databases?service=${ATLAS_SERVICE}&limit=50`);
   for (const db of dbs.data ?? []) {

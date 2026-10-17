@@ -3,6 +3,7 @@
 #   ./infra/azure/demo/record-portal.sh                  # reset the team memory, record → docs/demo/wisteria-portal-demo.mp4
 #   ./infra/azure/demo/record-portal.sh --keep           # keep the current team memory
 #   SCENES=om DRY=1 ./infra/azure/demo/record-portal.sh --keep   # rehearse only the OpenMetadata part, no video
+#   SCENES=traces VIDEO=test.mp4 ./infra/azure/demo/record-portal.sh --keep   # test one scene into another file
 # Needs the portal browser up (vm/portal-up.sh) and signed in to ai.azure.com and OpenMetadata (you sign in, over noVNC).
 # Everything runs through Azure Run Command; the video comes back through a one-off download link.
 set -euo pipefail
@@ -53,5 +54,5 @@ run "$TMP/clean.sh" >/dev/null
 [[ -n "${DRY:-}" ]] && exit 0
 
 echo "== editing (agents' thinking time sped up)"
-python3 "$ROOT/infra/azure/demo/speedup.py" "$TMP/raw.mp4" "$TMP/segments.json" "$OUT/wisteria-portal-demo.mp4" "${SPEEDUP:-8}"
-ls -lh "$OUT/wisteria-portal-demo.mp4"
+python3 "$ROOT/infra/azure/demo/speedup.py" "$TMP/raw.mp4" "$TMP/segments.json" "$OUT/${VIDEO:-wisteria-portal-demo.mp4}" "${SPEEDUP:-8}"
+ls -lh "$OUT/${VIDEO:-wisteria-portal-demo.mp4}"

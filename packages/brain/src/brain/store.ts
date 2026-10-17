@@ -4,6 +4,7 @@ import type { BrainDoc, Chunk, Entity } from "./types.ts";
 
 let client: MongoClient | undefined;
 let db: Db | undefined;
+let memoryClient: MongoClient | undefined;
 
 export async function getDb(): Promise<Db> {
   if (db) return db;
@@ -13,15 +14,25 @@ export async function getDb(): Promise<Db> {
   return db;
 }
 
-/** agent-memory's database in the same cluster (record lookups and resets; writes go through its API). */
+/** agent-memory's database (record lookups and resets; writes go through its API): its own Atlas cluster when
+ * AGENT_MEMORY_MONGODB_URI is set, else the brain's cluster. */
 export async function memoryDb(): Promise<Db> {
+  if (cfg.memory.uri) {
+    if (!memoryClient) {
+      memoryClient = new MongoClient(cfg.memory.uri, { appName: "wisteria-company-brain" });
+      await memoryClient.connect();
+    }
+    return memoryClient.db(cfg.memory.db);
+  }
   await getDb();
   return client!.db(cfg.memory.db);
 }
 
 export async function closeDb() {
   await client?.close();
+  await memoryClient?.close();
   client = undefined;
+  memoryClient = undefined;
   db = undefined;
 }
 

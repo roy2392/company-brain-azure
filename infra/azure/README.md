@@ -31,6 +31,8 @@ No laptop and no tunnel in the loop: the Foundry agents call the brain and OpenM
 | `main.tf`, `network.tf` | resource group, VNet/subnet, NSG on the NIC **and** the subnet (80/443/8443/8444 from the internet; 22 from your IP only with `enable_ssh = true`), static public IP with an Azure DNS name |
 | `vm.tf`, `cloud-init.yaml.tftpl` | Ubuntu 24.04 VM (`Standard_D8s_v5`, 128 GB Premium SSD, system-assigned identity); cloud-init installs Docker and writes the generated settings and secrets to `/opt/brain` |
 | `foundry.tf` | AI Services account (`allowProjectManagement`), project `wisteria-agents`, `gpt-5.4` GlobalStandard deployment, 8 MCP connections (2 per agent), `Cognitive Services User` for the VM identity |
+| `tracing.tf` | Log Analytics workspace, Application Insights, the `AppInsights` connection on the Foundry account (every agent run and MCP tool call shows under the agent's **Traces** tab), Monitoring Metrics Publisher for the Foundry identities |
+| `atlas.tf` | Optional (on when `atlas_org_id` is set): MongoDB Atlas project, an M10 cluster on Azure (`SWEDEN_CENTRAL`, latest release for `$rankFusion`), a database user scoped to `agent_memory`, the VM's IP on the access list |
 | `secrets.tf` | OpenMetadata admin password, web basic-auth password, one gateway key per agent, OpenMetadata JWT signing key and Fernet key |
 | `outputs.tf` | URLs, SSH command, Foundry endpoint; passwords as sensitive outputs |
 
@@ -74,6 +76,28 @@ which goes through the management API:
 ./infra/azure/push.sh "docker restart brain_app"       # ship, then run a command on the VM
 ./infra/azure/push.sh --exec "docker logs --tail 50 brain_app"
 ```
+
+## Agent memory on a MongoDB Atlas cluster (optional)
+
+agent-memory runs on Atlas Local on the VM by default. To put the agents' shared memory on a real Atlas cluster (and
+browse it in the Atlas UI): create an Atlas service account with **Organization Project Creator**, put its values in
+`terraform/atlas.auto.tfvars` (git-ignored), apply, then switch the VM over:
+
+```hcl
+atlas_org_id        = "<organization id>"
+atlas_client_id     = "<service account client id>"
+atlas_client_secret = "<service account client secret>"
+```
+
+```bash
+terraform -chdir=infra/azure/terraform apply      # ~10 minutes for the M10
+./infra/azure/memory-to-atlas.sh                  # connection string → VM, agent-memory + brain restart, OpenMetadata, reset
+terraform -chdir=infra/azure/terraform output atlas_cluster_url
+./infra/azure/memory-to-atlas.sh --off            # back to Atlas Local
+```
+
+OpenMetadata then catalogs the memory under its own service (`wisteria_atlas_memory`), with the same lineage.
+M0 and Flex clusters stay on MongoDB 8.0, and agent-memory needs `$rankFusion` (8.1+), hence the M10.
 
 ## Use it
 

@@ -44,6 +44,8 @@ FOUNDRY_AGENT_KEYS='${FOUNDRY_AGENT_KEYS}'
 JWT_KEY_ID=${JWT_KEY_ID}
 FERNET_KEY=${FERNET_KEY}
 EOF
+# agent-memory on its own Atlas cluster (written by infra/azure/memory-to-atlas.sh)
+if [ -f /opt/brain/env/atlas.env ]; then cat /opt/brain/env/atlas.env >> .env; fi
 umask 022
 
 log "OpenMetadata signing keys"

@@ -54,3 +54,14 @@ output "openmetadata_admin_password" {
   value       = random_password.om_admin.result
   sensitive   = true
 }
+
+output "atlas_memory_uri" {
+  description = "agent-memory's connection string on the Atlas cluster (empty without Atlas); memory-to-atlas.sh ships it to the VM."
+  value       = local.atlas_memory_uri
+  sensitive   = true
+}
+
+output "atlas_cluster_url" {
+  description = "The memory cluster in the Atlas UI (Data Explorer: Browse Collections → agent_memory)."
+  value       = local.atlas ? "https://cloud.mongodb.com/v2/${mongodbatlas_project.brain[0].id}#/clusters/detail/${mongodbatlas_advanced_cluster.memory[0].name}" : "Atlas not enabled (set atlas_org_id)"
+}

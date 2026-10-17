@@ -18,7 +18,8 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     environment:
-      MONGODB_CONNECTION_STRING: mongodb://atlas:27017/?directConnection=true
+      # its own MongoDB Atlas cluster when set (Azure: infra/azure/terraform/atlas.tf), else Atlas Local
+      MONGODB_CONNECTION_STRING: ${AGENT_MEMORY_MONGODB_URI:-mongodb://atlas:27017/?directConnection=true}
       MONGODB_DATABASE_NAME: agent_memory
       TRANSPORT: both
       HOST: 0.0.0.0

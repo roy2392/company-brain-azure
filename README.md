@@ -1,178 +1,202 @@
-# Wisteria Company Brain
+<div align="center">
 
-A working company brain for **Wisteria Group**, the Era by Eon synthetic company (B2B fintech, 20k employees, 6k customers).
-It ingests Salesforce, Zendesk, Gong, Slack, Jira, Confluence and Google Drive into **MongoDB Atlas**, catalogs and governs it in
-**OpenMetadata**, and answers questions with citations — in a web app and, through MCP, in Claude. Three role agents
-(Support Lead, Account Manager, RevOps) share one memory through [agent-memory](https://github.com/mongodb-partners/agent-memory)
-on the same Atlas, and OpenMetadata records their runs and memories.
+<img src="docs/assets/logos/microsoft.svg" height="40" alt="Microsoft">&nbsp;&nbsp;&nbsp;&nbsp;<img src="docs/assets/logos/foundry.svg" height="40" alt="Microsoft Foundry">&nbsp;&nbsp;&nbsp;&nbsp;<img src="docs/assets/logos/mongodb-leaf-forest.svg" height="42" alt="MongoDB">&nbsp;&nbsp;&nbsp;&nbsp;<img src="docs/assets/logos/openmetadata.svg" height="42" alt="OpenMetadata">&nbsp;&nbsp;&nbsp;&nbsp;<img src="docs/assets/logos/terraform.svg" height="40" alt="Terraform">
 
-```
-Era · Wisteria (6 read-only connectors)
-        │  TypeScript connectors (vendor-shaped REST, cached on disk)
-        ▼
-MongoDB Atlas  wisteria_brain
-  raw_<system>_<object>   verbatim records
-  docs                    citable units (ticket, call, thread, page, opportunity…)
-  entities                accounts · people · products + links      → $graphLookup
-  chunks                  text + embeddings → Atlas Search + Vector Search → $rankFusion
-        │                                     ▲
-        ▼                                     │ definitions, owners, lineage at answer time
-OpenMetadata 2.0.5  domains · glossary · teams/owners · Era source services · Atlas service · lineage
-        │
-Brain tools: search_brain · account_360 · related_entities · what_changed · explain_data · get_record · team_memory
-  ├─ MCP server (stdio)  → Claude Desktop / Claude Code
-  └─ Web app (Vite/React) → Claude Agent SDK → streamed, cited answers + evidence vine + lineage
+# Company Brain on MongoDB Atlas
 
-Wisteria agents (Support Lead → Account Manager → RevOps), Claude Agent SDK + brain tools + memory tools
-        │  recall_team_memory · remember · team_activity
-        ▼
-agent-memory :8000 (REST + MCP)  →  MongoDB Atlas  agent_memory: memories · episodes · decisions
-        │
-OpenMetadata: AI applications · agent executions · Context Center memories · lineage agents → memories → brain
-```
+**Microsoft Foundry agents that share one memory on MongoDB Atlas, with every answer governed by OpenMetadata.**
 
-## Run it
+[![Microsoft Foundry](https://img.shields.io/badge/Microsoft%20Foundry-gpt--5.4%20agents-0078D4?style=for-the-badge)](#microsoft-foundry-agents)
+[![MongoDB Atlas](https://img.shields.io/badge/MongoDB%20Atlas-%24rankFusion%20%C2%B7%20agent--memory-00684A?style=for-the-badge&logo=mongodb&logoColor=white)](#the-brain-on-mongodb-atlas)
+[![OpenMetadata](https://img.shields.io/badge/OpenMetadata-2.0.5-7147E8?style=for-the-badge)](#governed-by-openmetadata)
+[![Terraform](https://img.shields.io/badge/Terraform-azurerm%20%C2%B7%20azapi%20%C2%B7%20mongodbatlas-7B42BC?style=for-the-badge&logo=terraform&logoColor=white)](infra/azure/README.md)
+[![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-tools-1F2937?style=for-the-badge)](#model-context-protocol)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Node%2022-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](packages/brain)
 
-Prerequisites: Docker (8 GB), Node 22, Ollama with `ollama pull nomic-embed-text` and `ollama pull qwen2.5:3b`
-(the second one enriches agent memories).
+[Overview](#overview) · [Demo](#demo) · [Architecture](#architecture) · [Getting started](#getting-started) · [Deploy to Azure](#deploy-to-azure) · [How it works](#how-it-works) · [Security](#security) · [Resources](#resources)
+
+</div>
+
+---
+
+## Overview
+
+Ask *"What changed at Wisteria this quarter?"* and the answer lives in six systems that never share an id. This repository
+builds a **company brain** for Wisteria Group, the synthetic B2B fintech served by Era by Eon (20,000
+employees, 6,000 customers), and runs it on Azure:
+
+- **One brain on MongoDB Atlas.** Salesforce, Zendesk, Gong, Slack, Jira, Confluence and Google Drive land as documents,
+  resolved entities and embedded chunks, searched in one stage with `$rankFusion` (Atlas Search + Vector Search) and walked
+  with `$graphLookup`. Every claim is cited back to its record.
+- **Four role agents in Microsoft Foundry** (Support Lead, Account Manager, RevOps Analyst, Product Lead) on gpt-5.4.
+  They share **one memory** through [agent-memory](https://github.com/mongodb-partners/agent-memory) on MongoDB Atlas: each
+  agent recalls what its teammates saved, investigates only the gaps, and remembers what it learned.
+- **Governed by OpenMetadata.** Definitions, owners, lineage and PII tags come from the catalog at answer time, over MCP.
+  Every memory is mirrored to OpenMetadata's Context Center, written by the agent's own bot, and agents **grow the
+  ontology** by proposing glossary terms that go *In Review* for Data Platform.
+- **Traced and reproducible.** Application Insights traces every run and MCP tool call in Foundry, and the whole stack
+  (network, Foundry, VM, tracing and the Atlas cluster) is **Terraform**.
+
+## Demo
+
+<a href="docs/demo/wisteria-portal-demo.mp4"><img src="docs/assets/demo-thumbnail.png" alt="Watch the demo: four Foundry agents, one memory, governed in OpenMetadata" width="100%"></a>
+
+Recorded in the real portals (3½ minutes, agents' thinking time sped up): the four agents in the **Microsoft Foundry
+playground**, then their memories, lineage and a new glossary term in **OpenMetadata**. Re-record it with
+[`infra/azure/demo/record-portal.sh`](infra/azure/demo/README.md).
+
+| Foundry: the agent names a pattern | Foundry tracing: every tool call | OpenMetadata: the proposed term |
+|---|---|---|
+| <img src="docs/assets/foundry-answer.png" alt="Account Manager answer in the Foundry playground"> | <img src="docs/assets/foundry-trace.png" alt="Foundry trace of the Account Manager run, remember with new_concept"> | <img src="docs/assets/openmetadata-term.png" alt="Glossary term Budget-Coded Trust Loss, In Review, in OpenMetadata"> |
+
+## Architecture
+
+<img src="docs/assets/architecture.svg" alt="Architecture: Microsoft Foundry agents call the brain over MCP on an Azure VM; agent-memory keeps their shared memory on a MongoDB Atlas cluster; OpenMetadata governs it all; Terraform provisions everything" width="100%">
+
+| Layer | Technology | Role |
+|---|---|---|
+| Agents | **Microsoft Foundry** prompt agents, gpt-5.4 | Support Lead, Account Manager, RevOps Analyst, Product Lead |
+| Tools | **Model Context Protocol** over HTTPS, one key per agent | Company-brain tools + team memory; OpenMetadata read tools via each agent's bot |
+| Shared memory | **agent-memory** on **MongoDB Atlas** (M10 on Azure, `$rankFusion`) | Short-term, long-term and episodic memory for all agents |
+| Brain | **MongoDB Atlas** (Atlas Local 8.3 on the VM) | Raw records, docs, entity graph, chunks + embeddings |
+| Governance | **OpenMetadata 2.0.5** (+ Postgres, Elasticsearch, Apache Jena Fuseki) | Glossary and ontology, owners, lineage, PII, AI assets, memories |
+| Observability | **Application Insights** + Log Analytics | Foundry traces: every run and tool call |
+| Infrastructure | **Terraform** (`azurerm`, `azapi`, `mongodbatlas`) | Network, Foundry, VM, tracing, Atlas project and cluster |
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 22, Docker (8 GB for the local stack), [Ollama](https://ollama.com) with `nomic-embed-text` and `qwen2.5:3b`
+- An Era by Eon environment (the Wisteria Group tokens)
+- For Azure: Terraform ≥ 1.9, the Azure CLI signed in to your subscription; optionally a MongoDB Atlas service account
+
+### Run locally
 
 ```bash
 npm install
 cp .env.example .env
-docker compose up -d                      # Atlas Local + OpenMetadata + agent-memory (about 3 min on first start)
+docker compose up -d                      # Atlas Local + OpenMetadata + agent-memory (about 3 minutes the first time)
+npm run era:import -- --register          # Era tokens → .env (never printed) + MCP servers for Claude Code
+npm run ingest                            # Era → Atlas (cached, re-runs are cheap)
+npm run om:setup                          # OpenMetadata: ontology, sources, Atlas collections, lineage, owners, agents
+npm run smoke                             # checks every layer without a model
+npm run dev                               # API :8787 + web app http://localhost:3100
 ```
 
-Connect Era: in the Era console click **Connect**, create a token and copy the six `claude mcp add …` commands, then:
+Model access for the local agent: `ANTHROPIC_API_KEY` in `.env`, or Microsoft Foundry (`CLAUDE_CODE_USE_FOUNDRY=1` plus
+the `ANTHROPIC_FOUNDRY_*` variables). OpenMetadata: http://localhost:8585.
+
+### Deploy to Azure
 
 ```bash
-npm run era:import -- --register          # tokens → .env (never printed) + adds the MCP servers to Claude Code
-npm run era:probe                         # optional: what each connector exposes
-npm run ingest                            # Era → Atlas (cached; re-runs are cheap); BRAIN_FOCUS_NAMES picks demo accounts
-npm run om:setup                          # OpenMetadata: semantics, sources, Atlas collections, lineage, owners
-npm run smoke                             # checks every layer without the LLM
+cd infra/azure/terraform
+cp terraform.tfvars.example terraform.tfvars   # subscription, SSH key, your IP
+terraform init && terraform apply              # ~3 minutes (an Atlas cluster adds ~10)
+cd ../../..
+./infra/azure/deploy.sh --data                 # ship the repo + data, bootstrap the VM, create the Foundry agents
 ```
 
-Model access for the agent (one of): `ANTHROPIC_API_KEY=…` in `.env`, or Microsoft Foundry
-(`CLAUDE_CODE_USE_FOUNDRY=1` plus the `ANTHROPIC_FOUNDRY_*` variables).
+No SSH from your network? [`infra/azure/push.sh`](infra/azure/push.sh) operates the VM through Azure Run Command.
+To put the agents' memory on a **MongoDB Atlas cluster**, add an Atlas service account to `terraform/atlas.auto.tfvars`,
+`terraform apply`, then `./infra/azure/memory-to-atlas.sh`. Full guide: [infra/azure/README.md](infra/azure/README.md).
 
-```bash
-npm run dev                               # API :8787 + UI http://localhost:3100
-```
+## How it works
 
-OpenMetadata UI: http://localhost:8585 (local quickstart login `admin@open-metadata.org` / `admin`).
+### The brain on MongoDB Atlas
 
-### Use the brain from Claude
+| Collection | What it holds | Queried with |
+|---|---|---|
+| `raw_<system>_<object>` | Each vendor's JSON, verbatim | upserts by source id |
+| `docs` | Citable units: ticket, call, thread, page, deal | indexes on account and time |
+| `entities` | Accounts, people, products merged across systems | `$graphLookup` |
+| `chunks` | Text + 768-d embeddings (Ollama `nomic-embed-text`) | `$rankFusion` of Atlas Search + Vector Search |
 
-```bash
-claude mcp add wisteria-brain -- npx tsx ~/Projects/company-brain-showcase/packages/brain/src/mcp/server.ts
-```
+Seven tools (`search_brain`, `account_360`, `related_entities`, `what_changed`, `explain_data`, `get_record`,
+`team_memory`) share one citation contract: every claim carries a record id such as `[[zendesk:ticket:4017504]]`.
 
-Or ask it from the terminal (same agent as the web app):
+### Microsoft Foundry agents
 
-```bash
-npm run ask -- "Which datasets with personal data feed the Company Brain agent, and who owns them?"
-```
+Each Foundry agent has two MCP tools: the **company brain** (its tools plus `recall_team_memory`, `remember`,
+`team_activity`) and **OpenMetadata** (search, entity details, lineage, read-only, as the agent's own bot). Instructions
+and tools live in [`packages/brain/scripts/foundry-agents.ts`](packages/brain/scripts/foundry-agents.ts); the VM creates
+the agents with its managed identity. Application Insights on the Foundry account traces every run
+([`tracing.tf`](infra/azure/terraform/tracing.tf)).
 
-### OpenMetadata's MCP server
+### Shared memory with agent-memory
 
-OpenMetadata 2.x ships its own MCP server at `http://localhost:8585/mcp` (search, entity details, lineage, company
-context, plus write tools). `npm run om:mcp` creates a read-only `company-brain-bot` (DataConsumer role), stores its
-token in `.env` and lists the tools; `npm run om:mcp -- --register` also adds the `openmetadata` server to Claude Code
-for this project. The brain agent connects to it automatically when the token is present, with the write tools
-blocked, and OpenMetadata catalogs it as one of the agent's tools.
+All agents write to one memory space in [agent-memory](https://github.com/mongodb-partners/agent-memory) (REST + MCP),
+which keeps memories, an episodic log and decisions in MongoDB, recalled with `$rankFusion`. On Azure it can run on its
+own Atlas cluster ([`atlas.tf`](infra/azure/terraform/atlas.tf)): an M10 on Azure in Sweden Central, on the latest MongoDB
+release, reachable only from the VM, browsable in the Atlas UI.
 
-### Agents with a shared memory (agent-memory)
+### Governed by OpenMetadata
 
-Three Wisteria role agents run on the Claude Agent SDK, each with a subset of the brain tools plus three memory tools:
-`recall_team_memory`, `remember` and `team_activity`. They all use one memory space (`AGENT_MEMORY_TEAM`) in
-[agent-memory](https://github.com/mongodb-partners/agent-memory), which runs as the `agent-memory` compose service on
-:8000 and stores short-term, long-term and episodic memory in the `agent_memory` database of the same Atlas. Embeddings
-come from Ollama (`nomic-embed-text`), and a local `qwen2.5:3b` enriches long-term memories.
+- **Semantics:** 27 business concepts with 18 typed relations, mapped to schema.org, FIBO, W3C ORG and FOAF; 5 governed
+  metrics with the exact MongoDB aggregation behind each.
+- **Physical:** 46 datasets with owners, domains and PII tags; 426 column-lineage mappings from Era to the agents.
+- **AI assets:** the agents as AI applications, their MCP servers, runs, and memories in the Context Center, each written
+  by the agent's bot (`support-lead-agent`, …) and linked to `agent_memory.memories`.
+- **A growing ontology:** an agent can pass `new_concept` to `remember`; it becomes a glossary term under its parent,
+  owned by the agent's team, *In Review* with an approval task for Data Platform.
+- **Reasoning:** the catalog is projected into Apache Jena Fuseki; OWL reasoning finds every PII dataset an agent depends
+  on from one-hop lineage (`npm run sparql -- 3 --compare`: 0 → 16 rows).
 
-```bash
-npm run agents                            # Support Lead → Account Manager → RevOps on Novaris Holdings
-npm run agents -- --account "Ironwood Group"
-npm run agents -- --only revops_analyst   # one agent, on whatever the team already remembers
-npm run agents -- --reset                 # forget the team memory first (Atlas + the OpenMetadata mirror)
-npm run agents -- --sync                  # record journaled runs OpenMetadata missed
-```
+### Model Context Protocol
 
-Each agent recalls the team memory first and only investigates the gaps; in the rehearsal run the tool calls went
-14 → 11 → 7. In OpenMetadata, `npm run om:setup` catalogs the three agents as AI applications (owned by Support,
-Customer Success and Finance), agent-memory as an MCP server, the `agent_memory` collections, and lineage
-brain → agents → `agent_memory.memories` → `company_brain_agent`. Every run becomes an agent execution (tool calls,
-data read and written, cost) and every saved memory a shared Context Center memory scoped to the agent that wrote it,
-authored by that agent's own bot user (`support-lead-agent`, `account-manager-agent`, `revops-analyst-agent`, role
-`WisteriaAgent`: read the catalog, create and edit memories, no delete).
-Runs are journaled in `.cache/agent-runs` first, so a catalog outage is repaired with `--sync`. The brain's own
-`team_memory` tool lets the web app answer "what do our agents already know about Novaris Holdings?".
+MCP runs in both directions: the brain is an MCP server (`npm run mcp`, or `/agents/<agent>/mcp` on Azure) for Foundry,
+Claude, GitHub Copilot or any client; and the agents are MCP clients of OpenMetadata and Era.
 
-agent-memory is not on PyPI; `infra/agent-memory/Dockerfile` builds a pinned commit and installs the exact versions in
-its `uv.lock` with `--require-hashes`. Where `files.pythonhosted.org` is blocked, set `AGENT_MEMORY_PIP_INDEX_URL` to a
-PyPI mirror: the hashes still have to match PyPI's.
+## Security
 
-### Ontology and knowledge graph (RDF / SPARQL)
+- Internet-facing: only Caddy (TLS) on the VM. Atlas Local, agent-memory, OpenMetadata, Fuseki and Ollama stay on the
+  Docker network; SSH is closed unless you enable it.
+- Foundry uses Entra ID only (`disableLocalAuth`); the VM calls it with its managed identity.
+- Each agent reaches the gateway with its own key, stored in a Foundry project connection; one agent's key opens no other.
+- OpenMetadata bot tokens never leave the VM; only read tools pass. Agent bots may write memories and propose glossary
+  terms, nothing else.
+- The Atlas cluster accepts only the VM's IP; its database user is scoped to `agent_memory`.
+- Secrets are generated by Terraform; keep its state private. Details: [infra/azure/README.md](infra/azure/README.md#security-model).
 
-`npm run om:setup` builds the Wisteria ontology in OpenMetadata: 27 concepts as an is-a hierarchy, 18 typed relation
-types (works for, owns, about, raised by, escalates to, indicates… with inverses), mappings to schema.org, FIBO,
-W3C ORG and FOAF, and 5 governed metrics. With RDF enabled, OpenMetadata projects the catalog into Apache Jena Fuseki,
-and the setup adds a small OWL graph (subclasses, inverse properties, transitive `wst:dependsOn` over lineage) so
-reasoners can use it.
+## Costs
 
-```bash
-npm run sparql                            # list the demo queries
-npm run sparql -- 1                       # the ontology map
-npm run sparql -- 2 --compare             # RDFS: every kind of Person (2 → 4 with the reasoner)
-npm run sparql -- 3 --compare             # OWL: PII datasets the agent depends on (0 → 16 with the reasoner)
-```
+While running: the VM (`Standard_D8s_v5`, about US$0.38/hour) and, if enabled, the Atlas M10 cluster (about
+US$0.10/hour) dominate; Foundry tokens and Application Insights are per use. Deallocate the VM between sessions and
+`terraform destroy` when you are done.
 
-Plain queries go through OpenMetadata's API (`/api/v1/rdf/sparql`). Inference runs in the Fuseki services
-`openmetadata_rdfs` and `openmetadata_owl` (Jena RDFS rules and OWL Micro), because OpenMetadata 2.0.5's own
-`inference=` option fails against Fuseki. Fuseki UI: http://localhost:3030. After enabling RDF on an existing
-catalog, run `npm run om:setup -- --rdf-reindex` once.
-
-### Run it on Azure (with Microsoft Foundry agents)
-
-`infra/azure/` deploys the whole stack to one Azure VM with Terraform (OpenMetadata, Atlas Local, agent-memory,
-Ollama, the brain behind Caddy/TLS) and creates four role agents in Microsoft Foundry that call the brain, the shared
-memory and OpenMetadata over MCP. `/team` lets you chat with each agent and watch the shared memory fill up in Atlas
-and in OpenMetadata. See [infra/azure/README.md](infra/azure/README.md); coding agents start with [AGENTS.md](AGENTS.md).
-
-### Run on Atlas cloud
-
-Set `MONGODB_URI=mongodb+srv://…` and re-run `npm run ingest`. Search and vector indexes are created automatically.
-`$rankFusion` needs MongoDB 8.1+; on older tiers the brain fuses results itself (RRF). For OpenMetadata, edit the
-`wisteria_atlas` service connection in the UI (the dockerized connector only reaches the local container).
-
-## Demo script (Sunday)
-
-1. **The silos.** Open the Era console: six systems, one company. Then the app — the vine shows what's in memory.
-2. **Ask across silos.** "Is Acacia Partners at risk of churning? Show me the evidence." Watch blossoms open per system;
-   click a citation to open the Zendesk thread or Gong transcript it came from.
-3. **What changed.** "What changed at Wisteria this quarter?" (Era's environment was moved one quarter forward).
-4. **Governed answers.** "How do we define ARR, and who owns that number?" → OpenMetadata glossary term, owner, lineage.
-   Open OpenMetadata: domains, the `Customer360Brain` data product, lineage Era → Atlas → agent, PII tags,
-   the Customer term's relations graph. Then `npm run sparql -- 3 --compare`: the reasoner finds every PII dataset
-   the agent depends on from one-hop lineage facts.
-5. **Any agent.** Same question in Claude Code with the `wisteria-brain` MCP server.
-6. **Three agents, one memory.** `npm run agents -- --only revops_analyst`: it recalls six memories from its teammates.
-   Then in OpenMetadata: Context Center memories, an agent's executions, the lineage of `agent_memory.memories`.
-
-Rehearsal checklist: `docker compose ps` all healthy, `npm run smoke` passes, one warm-up question in the UI,
-OpenMetadata logged in on a second tab, Era console open on a third.
-
-## Layout
+## Repository layout
 
 ```
-docker-compose.yml               Atlas Local + include infra/openmetadata.compose.yml (OM 2.0.5, Airflow removed)
-infra/agent-memory*              agent-memory service (pinned commit, hash-checked deps)
-packages/brain/src
-  era/client.ts                  auth'd REST + MCP client, retries, disk cache (.cache/era)
-  era/connectors/*.ts            salesforce (runs first: accounts + focus), slack, zendesk, gong, atlassian, drive
-  brain/                         store + indexes, embeddings, chunking, entities, hybrid search, tools
-  om/                            OpenMetadata client, catalog builder, native MongoDB connector runner, agent assets
-  agents/                        role agents, shared-memory client (agent-memory REST), run journal
-  agent.ts, server.ts, mcp/      Agent SDK loop, HTTP API (SSE), MCP server
-apps/web                         showcase UI
-docs/superpowers/specs           design
+packages/brain/src      brain store, search, tools, agents, Foundry gateway, OpenMetadata integration, MCP server
+packages/brain/scripts  ingest, om:setup, foundry-agents, team-reset, sparql, smoke
+apps/web                web app: cited answers, evidence vine, /team
+infra/azure             Terraform, VM bootstrap, Run Command tooling, portal browser, demo recorder
+infra/*.compose.yml     OpenMetadata 2.0.5, agent-memory (pinned, hash-checked)
+docs/                   demo video, design notes, assets
+AGENTS.md               start here if you are a coding agent
 ```
+
+## Resources
+
+- [Microsoft Foundry documentation](https://learn.microsoft.com/azure/ai-foundry/) ·
+  [Application Insights](https://learn.microsoft.com/azure/azure-monitor/app/app-insights-overview)
+- [MongoDB Atlas Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/) ·
+  [`$rankFusion`](https://www.mongodb.com/docs/manual/reference/operator/aggregation/rankFusion/) ·
+  [agent-memory](https://github.com/mongodb-partners/agent-memory)
+- [OpenMetadata](https://docs.open-metadata.org) · [Model Context Protocol](https://modelcontextprotocol.io)
+- [Terraform MongoDB Atlas provider](https://registry.terraform.io/providers/mongodb/mongodbatlas/latest/docs)
+
+## Author
+
+**Roey Zalta**, Solution Engineer, Data & AI, Microsoft. Built for a MongoDB community session, October 2026.
+
+> This is a demonstration, not an official Microsoft, MongoDB or OpenMetadata product. All Wisteria Group data is
+> synthetic, served by Era by Eon.
+
+## Trademarks
+
+This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft trademarks
+or logos is subject to and must follow [Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/legal/intellectualproperty/trademarks/usage/general).
+Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft
+sponsorship. Any use of third-party trademarks or logos (MongoDB, OpenMetadata, Terraform and others) is subject to
+those third parties' policies.

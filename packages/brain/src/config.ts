@@ -61,6 +61,8 @@ export const cfg = {
   memory: {
     url: env("AGENT_MEMORY_URL", "http://localhost:8000"),
     db: env("AGENT_MEMORY_DB", "agent_memory"),
+    /** set when agent-memory runs on its own MongoDB Atlas cluster (infra/azure/terraform/atlas.tf); else the brain's */
+    uri: env("AGENT_MEMORY_MONGODB_URI"),
     /** one memory space every Wisteria agent reads and writes */
     team: env("AGENT_MEMORY_TEAM", "wisteria-revenue-team"),
     llmModel: env("AGENT_MEMORY_LLM_MODEL", "qwen2.5:3b"),

@@ -1,7 +1,7 @@
 import { cfg } from "../config.ts";
 import { memoryDb } from "../brain/store.ts";
 import { AGENTS, agentAppName, type WisteriaAgent } from "../agents/roster.ts";
-import { AI_APP, BRAIN_MCP, DATA_PRODUCT, atlasSchemaFqn, inferColumns, teamMap, termFqn, tolerate, toOmColumn } from "./catalog.ts";
+import { AI_APP, ATLAS_SERVICE, BRAIN_MCP, DATA_PRODUCT, MEMORY_SERVICE, inferColumns, memorySchemaFqn, memoryTableFqn, teamMap, termFqn, tolerate, toOmColumn } from "./catalog.ts";
 import { CONCEPTS, GLOSSARY } from "./ontology.ts";
 import { OM, ref, type Ref } from "./client.ts";
 import { ensureBotToken } from "./mcp.ts";
@@ -100,8 +100,10 @@ export async function setupAgentAssets(om: OM, brainSchemaFqn: string, log = con
   const owners = [teams.DataPlatform];
   const domains = ["CompanyBrain"];
 
-  // where the memory lives: agent-memory's collections, next to the brain in the same Atlas
-  const schemaFqn = await atlasSchemaFqn(om, owners, cfg.memory.db, "agent-memory (github.com/mongodb-partners/agent-memory): the shared memory of Wisteria's agents, in the same MongoDB Atlas as the brain.");
+  // where the memory lives: agent-memory's collections, on their own Atlas cluster or next to the brain
+  const schemaFqn = await memorySchemaFqn(om, owners);
+  // moved to the Atlas cluster: drop the old Atlas Local entry (and its lineage) so the catalog has one memory
+  if (MEMORY_SERVICE !== ATLAS_SERVICE) await tolerate(om.req("DELETE", `/databaseSchemas/name/${encodeURIComponent(`${ATLAS_SERVICE}.default.${cfg.memory.db}`)}?recursive=true&hardDelete=true`), [400, 404]);
   const db = await memoryDb();
   const tables: Record<string, Ref> = {};
   for (const t of MEMORY_COLLECTIONS) {
@@ -116,7 +118,7 @@ export async function setupAgentAssets(om: OM, brainSchemaFqn: string, log = con
   await om.put("/llmModels", { name: MEMORY_LLM, displayName: cfg.memory.llmModel, service: "ollama_local", baseModel: cfg.memory.llmModel, modelProvider: "Alibaba Cloud", description: "Local LLM inside agent-memory: summarizes and merges long-term memories (importance is scored in-process).", governanceStatus: "Approved", owners, domains });
   const memMcp = await om.put("/mcpServers", {
     name: MEMORY_MCP, displayName: "agent-memory (MongoDB)", service: "wisteria_mcp", serverType: "Database", transportType: "StreamableHTTP", developmentStage: "Development", owners, domains,
-    description: `Shared memory for Wisteria's agents: github.com/mongodb-partners/agent-memory on the brain's MongoDB Atlas (database \`${cfg.memory.db}\`). Four tiers: short-term, long-term (importance-scored, enriched by ${cfg.memory.llmModel} on Ollama), episodic (what each agent did) and a semantic cache. REST at ${cfg.memory.url}, MCP at ${cfg.memory.url}/mcp. The agents reach it through recall_team_memory / remember / team_activity.`,
+    description: `Shared memory for Wisteria's agents: github.com/mongodb-partners/agent-memory on ${cfg.memory.uri ? "its own MongoDB Atlas cluster on Azure" : "the brain's MongoDB Atlas"} (database \`${cfg.memory.db}\`). Four tiers: short-term, long-term (importance-scored, enriched by ${cfg.memory.llmModel} on Ollama), episodic (what each agent did) and a semantic cache. REST at ${cfg.memory.url}, MCP at ${cfg.memory.url}/mcp. The agents reach it through recall_team_memory / remember / team_activity.`,
     connectionConfig: { url: `${cfg.memory.url}/mcp` },
     tools: AGENT_MEMORY_TOOLS.map(([name, riskLevel, sideEffects]) => ({ name, toolCategory: "DataOperation", riskLevel, sideEffects, idempotent: !sideEffects, reversible: riskLevel !== "High" })),
     dataAccessSummary: { sensitivityLevel: "Confidential", piiAccess: false, databaseAccess: true, externalApiAccess: false, networkAccess: true, fileSystemAccess: false },
@@ -171,7 +173,7 @@ async function cached(om: OM, key: string, load: () => Promise<any>): Promise<Re
   }
   return refCache.get(key)!;
 }
-const memoryTable = (om: OM, name: string) => cached(om, `table:${name}`, () => om.get(`/tables/name/${encodeURIComponent(`wisteria_atlas.default.${cfg.memory.db}.${name}`)}`));
+const memoryTable = (om: OM, name: string) => cached(om, `table:${name}`, () => om.get(`/tables/name/${encodeURIComponent(memoryTableFqn(name))}`));
 const brainTableRef = (om: OM, name: string) => cached(om, `table:brain.${name}`, () => om.get(`/tables/name/${encodeURIComponent(`wisteria_atlas.default.${cfg.mongo.db}.${name}`)}`));
 const appRef = (om: OM, a: WisteriaAgent) => cached(om, `aiApplication:${a.name}`, () => om.get(`/aiApplications/name/${agentAppName(a)}`));
 const mcpRef = (om: OM, name: string) => cached(om, `mcpServer:${name}`, () => om.get(`/mcpServers/name/wisteria_mcp.${name}`));

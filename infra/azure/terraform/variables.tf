@@ -72,3 +72,36 @@ variable "web_username" {
   type        = string
   default     = "wisteria"
 }
+
+# ---- MongoDB Atlas (optional, see atlas.tf): values in atlas.auto.tfvars, git-ignored
+
+variable "atlas_org_id" {
+  description = "Atlas organization id. Empty: no Atlas cluster, agent-memory stays on Atlas Local."
+  type        = string
+  default     = ""
+}
+
+variable "atlas_client_id" {
+  description = "Atlas service account client id (role: Organization Project Creator)."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "atlas_client_secret" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
+variable "atlas_region" {
+  description = "Atlas region on Azure (next to the VM)."
+  type        = string
+  default     = "SWEDEN_CENTRAL"
+}
+
+variable "atlas_instance_size" {
+  description = "M10 is the smallest tier that runs MongoDB 8.1+ ($rankFusion, needed by agent-memory)."
+  type        = string
+  default     = "M10"
+}
