@@ -33,6 +33,7 @@ services:
   elasticsearch:
     container_name: openmetadata_elasticsearch
     image: docker.elastic.co/elasticsearch/elasticsearch:9.3.0
+    restart: unless-stopped
     environment:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms768m -Xmx768m
