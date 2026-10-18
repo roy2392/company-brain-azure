@@ -75,6 +75,36 @@ the repo; the trailer uses "Heroic Motif" (made with Suno; 207.96 s: a quiet int
 183.2 s, the last peak at 196.65 s, a fade from 203 s). Entries in `TIMELINE` start at absolute music times, and the
 drum sections cut on bar lines (`BAR`).
 
+## The quarter time-lapse (live sync into OpenMetadata)
+
+Era's tenant is read-only and its clock is frozen, so nothing changes on its own. The time-lapse replays Era's latest
+quarter (2026-10-05 → 2027-01-04) as if it were happening now: each tick moves a simulated clock forward one day, pulls
+that day's changes through the vendors' own incremental APIs (Zendesk search on `created`, the Zendesk organization
+audit log, Salesforce SOQL on `SystemModstamp`), upserts them into the `wisteria_live` database on Atlas, and updates
+OpenMetadata. The brain the agents use (`wisteria_brain`) is not touched.
+
+```bash
+./infra/azure/era-to-vm.sh                                   # once: Era tokens to /opt/brain/env/era.env on the VM
+./infra/azure/demo/timelapse.sh start --reset --prepare      # before the talk: reset, OpenMetadata shows day 0
+./infra/azure/demo/timelapse.sh start --interval 3           # on stage: one simulated day every 3 s (~5 minutes)
+./infra/azure/demo/timelapse.sh follow                       # progress; also status | stop
+```
+
+What to show in OpenMetadata (schema `wisteria_atlas.default.wisteria_live`, pipeline `brain_pipelines.era_live_sync`):
+
+| Where | What moves |
+| --- | --- |
+| Table → Profiler | the row-count chart grows tick by tick (tickets 0 → 2,505 over the quarter) |
+| Table → Sample Data | the newest 12 rows, refreshed each tick |
+| Table → Data Quality | *rows inserted* and *freshness on Era's clock* (newest record within 72 h of the simulated clock); a longer gap fails it |
+| Pipeline → Executions | one run per tick, one task per source |
+| Table → Activity Feed | a post for each signing and churn, e.g. Novaris Holdings ($925K ARR) on 2026-10-20, while Zendesk still says `customer` |
+| Table → Lineage | Era's Zendesk and Salesforce tables → the pipeline → the live tables |
+
+`--step-days 7` runs a week per tick, `--ticks N` stops early, and a run without `--reset` continues from the last
+tick (the clock lives in `wisteria_live._timelapse`). Each `--reset` names the test cases with a new run tag, because
+OpenMetadata keeps a test case's incidents by name even after the test case is hard-deleted.
+
 ## Exploring the portals
 
 `portal-act.mjs` runs a list of steps against the portal browser (click, type, screenshot, dump the visible controls,

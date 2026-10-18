@@ -23,7 +23,7 @@ Azure (Terraform). Read this before changing anything.
 | `infra/azure/vm/` | VM bootstrap, Caddyfile, OpenMetadata override |
 | `infra/azure/deploy.sh` | sync repo → VM, ship data, bootstrap (SSH) |
 | `infra/azure/push.sh` | same without SSH: ship code / run commands through Azure Run Command |
-| `infra/azure/demo/` | demo video recorders: the real Foundry + OpenMetadata portals (`record-portal.sh`, in the VM's portal browser) and the `/team` page (`record.sh`) |
+| `infra/azure/demo/` | demo video recorders: the real Foundry + OpenMetadata portals (`record-portal.sh`, in the VM's portal browser) and the `/team` page (`record.sh`); the quarter time-lapse (`timelapse.sh`, `packages/brain/scripts/timelapse.ts`) |
 
 ## Commands
 
@@ -37,6 +37,7 @@ npm test                             # unit tests (vitest)
 npx tsc --noEmit -p packages/brain && npx tsc --noEmit -p apps/web
 npm run agents                       # Claude role agents on the laptop (needs Claude access)
 npm run dev                          # API :8787 + UI :3100
+npm run timelapse -- --reset         # replay Era's latest quarter into wisteria_live + OpenMetadata, one day per tick
 ```
 
 Azure: see `infra/azure/README.md` (`terraform apply`, `./infra/azure/deploy.sh --data`, `./infra/azure/demo/record-portal.sh`).

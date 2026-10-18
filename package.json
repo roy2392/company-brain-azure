@@ -30,6 +30,7 @@
     "foundry:agents": "npm run foundry:agents -w @wisteria/brain --",
     "indexes": "npm run indexes -w @wisteria/brain --",
     "team:reset": "npm run team:reset -w @wisteria/brain --",
-    "reindex": "npm run reindex -w @wisteria/brain --"
+    "reindex": "npm run reindex -w @wisteria/brain --",
+    "timelapse": "npm run timelapse -w @wisteria/brain --"
   }
 }
